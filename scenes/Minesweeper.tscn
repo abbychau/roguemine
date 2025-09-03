@@ -1,0 +1,249 @@
+[gd_scene load_steps=2 format=3 uid="uid://bmx80demhvjch"]
+
+[ext_resource type="Script" path="res://scripts/Minesweeper.gd" id="1_minesweeper"]
+
+[node name="Minesweeper" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_minesweeper")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.2, 0.2, 0.2, 1)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="TopPanel" type="Panel" parent="UI"]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 80.0
+
+[node name="BackButton" type="Button" parent="UI/TopPanel"]
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 20.0
+offset_top = -25.0
+offset_right = 120.0
+offset_bottom = 25.0
+grow_vertical = 2
+text = "← MENU"
+
+[node name="InfoLabel" type="Label" parent="UI/TopPanel"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -126.0
+offset_top = -15.0
+offset_right = 124.0
+offset_bottom = 15.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "Mines: 0 | Flags: 0"
+horizontal_alignment = 1
+
+[node name="FlagModeButton" type="Button" parent="UI/TopPanel"]
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -100.0
+offset_top = -25.0
+offset_right = -20.0
+offset_bottom = 25.0
+grow_horizontal = 0
+grow_vertical = 2
+text = "🚩 OFF"
+
+[node name="UpgradePanel" type="Panel" parent="UI"]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -207.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="UpgradeTitle" type="Label" parent="UI/UpgradePanel"]
+layout_mode = 2
+offset_left = 10.0
+offset_top = 7.0
+offset_right = 94.0
+offset_bottom = 30.0
+text = "UPGRADES"
+horizontal_alignment = 1
+
+[node name="CoinsLabel" type="Label" parent="UI/UpgradePanel"]
+layout_mode = 2
+offset_left = 472.0
+offset_top = 5.0
+offset_right = 533.0
+offset_bottom = 28.0
+text = "Coins: 0"
+horizontal_alignment = 1
+
+[node name="FloodLevelLabel" type="Label" parent="UI/UpgradePanel"]
+layout_mode = 2
+offset_left = 19.0
+offset_top = 48.0
+offset_right = 250.0
+offset_bottom = 80.0
+text = "Flood Level: 1 (Radius: 5)"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="FloodUpgradeButton" type="Button" parent="UI/UpgradePanel"]
+layout_mode = 2
+offset_left = 263.0
+offset_top = 43.0
+offset_right = 526.0
+offset_bottom = 80.0
+text = "Upgrade Flood (10 coins)"
+autowrap_mode = 2
+
+[node name="CoinMultiplierLevelLabel" type="Label" parent="UI/UpgradePanel"]
+layout_mode = 2
+offset_left = 19.0
+offset_top = 90.0
+offset_right = 240.0
+offset_bottom = 113.0
+text = "Multiplier: x1.0 (Level 1)"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="CoinMultiplierUpgradeButton" type="Button" parent="UI/UpgradePanel"]
+layout_mode = 2
+offset_left = 264.0
+offset_top = 88.0
+offset_right = 526.0
+offset_bottom = 119.0
+text = "Upgrade Multiplier (15 coins)"
+autowrap_mode = 2
+
+[node name="ChordBonusLevelLabel" type="Label" parent="UI/UpgradePanel"]
+layout_mode = 2
+offset_left = 8.0
+offset_top = 131.0
+offset_right = 264.0
+offset_bottom = 154.0
+text = "Chord Bonus: +0 (Level 1)"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="ChordBonusUpgradeButton" type="Button" parent="UI/UpgradePanel"]
+layout_mode = 2
+offset_left = 262.0
+offset_top = 129.0
+offset_right = 526.0
+offset_bottom = 160.0
+text = "Upgrade Chord (20 coins)"
+autowrap_mode = 2
+
+[node name="GameOverPanel" type="Panel" parent="UI"]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -200.0
+offset_right = 300.0
+offset_bottom = 200.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="GameOverTitle" type="Label" parent="UI/GameOverPanel"]
+layout_mode = 2
+offset_left = 10.0
+offset_top = 20.0
+offset_right = 590.0
+offset_bottom = 80.0
+text = "GAME OVER!"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="FinalScoreLabel" type="Label" parent="UI/GameOverPanel"]
+layout_mode = 2
+offset_left = 10.0
+offset_top = 90.0
+offset_right = 590.0
+offset_bottom = 130.0
+text = "Final Score: 0"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="StatsLabel" type="Label" parent="UI/GameOverPanel"]
+layout_mode = 2
+offset_left = 10.0
+offset_top = 140.0
+offset_right = 590.0
+offset_bottom = 280.0
+text = "Time: 00:00
+Tiles Revealed: 0
+Chords Performed: 0
+Coins Earned: 0.0"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="RestartButton" type="Button" parent="UI/GameOverPanel"]
+layout_mode = 2
+offset_left = 50.0
+offset_top = 320.0
+offset_right = 250.0
+offset_bottom = 360.0
+text = "RESTART"
+
+[node name="MenuButton" type="Button" parent="UI/GameOverPanel"]
+layout_mode = 2
+offset_left = 350.0
+offset_top = 320.0
+offset_right = 550.0
+offset_bottom = 360.0
+text = "MAIN MENU"
+
+[node name="GameArea" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 80.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="GridContainer" type="Control" parent="GameArea"]
+anchors_preset = 0
+offset_left = 50.0
+offset_top = 150.0
+offset_right = 460.0
+offset_bottom = 560.0
+
+[node name="MineGrid" type="Control" parent="GameArea/GridContainer"]
+anchors_preset = 0
+
+[connection signal="pressed" from="UI/TopPanel/BackButton" to="." method="_on_back_button_pressed"]
+[connection signal="pressed" from="UI/TopPanel/FlagModeButton" to="." method="_on_flag_mode_button_pressed"]
+[connection signal="pressed" from="UI/UpgradePanel/FloodUpgradeButton" to="." method="_on_flood_upgrade_button_pressed"]
+[connection signal="pressed" from="UI/UpgradePanel/CoinMultiplierUpgradeButton" to="." method="_on_coin_multiplier_upgrade_button_pressed"]
+[connection signal="pressed" from="UI/UpgradePanel/ChordBonusUpgradeButton" to="." method="_on_chord_bonus_upgrade_button_pressed"]
+[connection signal="pressed" from="UI/GameOverPanel/RestartButton" to="." method="_on_restart_button_pressed"]
+[connection signal="pressed" from="UI/GameOverPanel/MenuButton" to="." method="_on_game_over_menu_button_pressed"]
+[connection signal="gui_input" from="GameArea" to="." method="_on_game_area_input"]

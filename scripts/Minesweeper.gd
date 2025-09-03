@@ -8,8 +8,12 @@ extends Control
 const VIEWPORT_SIZE = 15  # 15x15 visible area
 const FIELD_SIZE = 500     # 50x50 total minefield (can be made larger)
 const CELL_SIZE = 26      # Size of each cell in pixels (smaller for coordinates)
-const MINE_COUNT = FIELD_SIZE * FIELD_SIZE / 10  # 10% of the field size
+const MINE_COUNT = FIELD_SIZE * FIELD_SIZE / 10.0  # 10% of the field size
 const COORD_SIZE = 20     # Size of coordinate labels
+
+# Minimap settings
+const MINIMAP_SIZE = 200  # Size of the minimap in pixels
+const MINIMAP_CELL_SIZE = float(MINIMAP_SIZE) / float(FIELD_SIZE)  # Each cell size in minimap
 
 # Game state
 var minefield = []        # 2D array of mine data
@@ -33,12 +37,19 @@ var chord_bonus = 0  # Bonus coins per chord play (starts at 0)
 var chord_bonus_upgrade_cost = 20  # Cost to upgrade chord bonus
 var chord_bonus_upgrade_level = 1  # Current chord bonus upgrade level
 
+# End game bonus system
+var end_game_bonus = 100  # Bonus score for ending game early (starts at 100)
+var end_game_bonus_upgrade_cost = 30  # Cost to upgrade end game bonus
+var end_game_bonus_upgrade_level = 1  # Current end game bonus upgrade level
+
 # Score system
 var score = 0  # Player's total score
 var tiles_revealed = 0  # Total tiles revealed this game
 var chords_performed = 0  # Number of successful chord plays
 var game_start_time = 0.0  # When the game started
+var game_time = 0.0  # Current game time
 var game_over = false  # Is the game over?
+var is_timing = false  # Is the timer running?
 
 # Camera/viewport position
 var camera_x = 0
@@ -78,6 +89,8 @@ var coin_multiplier_upgrade_button
 var coin_multiplier_level_label
 var chord_bonus_upgrade_button
 var chord_bonus_level_label
+var end_game_bonus_upgrade_button
+var end_game_bonus_level_label
 
 # Game over UI references
 var game_over_panel
@@ -87,12 +100,34 @@ var stats_label
 var restart_button
 var menu_button
 
+# Time and end game UI references
+var time_label
+var end_game_button
+
+# Minimap UI references
+var minimap_panel
+var minimap_container
+var minimap_texture_rect
+var minimap_viewport_rect
+var minimap_image
+var minimap_texture
+var minimap_is_dragging = false
+
 func _ready():
 	print("Minesweeper loaded")
 	grid_container = $GameArea/GridContainer/MineGrid
-	info_label = $UI/TopPanel/InfoLabel
-	flag_mode_button = $UI/TopPanel/FlagModeButton
 	coord_container = $GameArea/GridContainer
+	
+	# Initialize UI elements - no longer using TopPanel
+	info_label = get_node_or_null("UI/InfoLabel")  # Now at bottom
+	flag_mode_button = get_node_or_null("UI/FlagModeButton")  # Direct reference
+	var back_button = get_node_or_null("UI/BackButton")  # Direct reference
+	time_label = get_node_or_null("UI/TimeLabel")  # Time display
+	end_game_button = get_node_or_null("UI/EndGameButton")  # End game button
+	
+	# Connect button signals if they exist
+	if end_game_button:
+		end_game_button.pressed.connect(_on_end_game_button_pressed)
 	
 	# Initialize upgrade panel UI
 	upgrade_panel = $UI/UpgradePanel
@@ -105,6 +140,12 @@ func _ready():
 	coin_multiplier_level_label = get_node_or_null("UI/UpgradePanel/CoinMultiplierLevelLabel")
 	chord_bonus_upgrade_button = get_node_or_null("UI/UpgradePanel/ChordBonusUpgradeButton")
 	chord_bonus_level_label = get_node_or_null("UI/UpgradePanel/ChordBonusLevelLabel")
+	end_game_bonus_upgrade_button = get_node_or_null("UI/UpgradePanel/EndGameBonusUpgradeButton")
+	end_game_bonus_level_label = get_node_or_null("UI/UpgradePanel/EndGameBonusLevelLabel")
+	
+	# Connect upgrade button signals
+	if end_game_bonus_upgrade_button:
+		end_game_bonus_upgrade_button.pressed.connect(_on_end_game_bonus_upgrade_button_pressed)
 	
 	# Initialize game over UI (will be null until we add them to scene)
 	game_over_panel = get_node_or_null("UI/GameOverPanel")
@@ -132,17 +173,29 @@ func _ready():
 	_create_coordinate_labels()
 	_create_visible_grid()
 	
+	# Initialize minimap UI (after minefield is created)
+	_create_minimap()
+	
 	# Center the camera in the middle of the field
-	camera_x = (FIELD_SIZE - VIEWPORT_SIZE) / 2
-	camera_y = (FIELD_SIZE - VIEWPORT_SIZE) / 2
+	camera_x = int((FIELD_SIZE - VIEWPORT_SIZE) / 2)
+	camera_y = int((FIELD_SIZE - VIEWPORT_SIZE) / 2)
 	
 	_update_camera_position()
 	_update_info_display()
 	_update_flag_mode_button()
 	_update_upgrade_ui()
+	_update_time_display()
+	_update_minimap()
 	
 	# Start the game timer
 	game_start_time = Time.get_ticks_msec() / 1000.0
+	is_timing = true
+
+func _process(_delta):
+	# Update game time and display if timer is running
+	if is_timing and not game_over:
+		game_time = Time.get_ticks_msec() / 1000.0 - game_start_time
+		_update_time_display()
 
 func _input(event: InputEvent):
 	# Global input handler to reset mouse button states when released anywhere
@@ -252,8 +305,8 @@ func _create_visible_grid():
 
 func _update_camera_position():
 	# Clamp camera position to valid bounds
-	camera_x = clamp(camera_x, 0, FIELD_SIZE - VIEWPORT_SIZE)
-	camera_y = clamp(camera_y, 0, FIELD_SIZE - VIEWPORT_SIZE)
+	camera_x = int(clamp(camera_x, 0, FIELD_SIZE - VIEWPORT_SIZE))
+	camera_y = int(clamp(camera_y, 0, FIELD_SIZE - VIEWPORT_SIZE))
 	
 	# Update coordinate labels
 	_update_coordinate_labels()
@@ -266,6 +319,14 @@ func _update_camera_position():
 			var button = cell_buttons[y][x]
 			
 			_update_cell_display(button, field_x, field_y)
+	
+	# Update minimap viewport indicator position
+	if minimap_viewport_rect:
+		var viewport_pos_on_minimap = Vector2(
+			camera_x * MINIMAP_CELL_SIZE,
+			camera_y * MINIMAP_CELL_SIZE
+		)
+		minimap_viewport_rect.position = viewport_pos_on_minimap
 
 func _update_coordinate_labels():
 	# Update X coordinate labels (top row)
@@ -479,6 +540,7 @@ func _toggle_flag(grid_x: int, grid_y: int):
 	flagged[field_x][field_y] = !flagged[field_x][field_y]
 	_update_camera_position()
 	_update_info_display()
+	_update_minimap()  # Update minimap when flags change
 
 func _reveal_cell(x: int, y: int):
 	# Limited flood reveal - use variable flood radius
@@ -546,6 +608,7 @@ func _reveal_cell(x: int, y: int):
 	
 	# Update UI after revealing cells
 	_update_upgrade_ui()
+	_update_minimap()  # Update minimap when cells are revealed
 	print("Revealed ", cells_revealed, " cells, earned ", "%.1f" % (cells_revealed * coin_multiplier), " coins. Total coins: ", "%.1f" % coins)
 
 func _show_floating_coin_text(world_x: int, world_y: int, coin_amount: float = 1.0):
@@ -663,15 +726,21 @@ func _update_info_display():
 			if revealed[x][y]:
 				revealed_count += 1
 	
-	info_label.text = "Mines: %d | Flags: %d | Pos: (%d,%d)" % [total_mines, flags_used, camera_x, camera_y]
+	if info_label:
+		info_label.text = "Mines: %d | Flags: %d | Pos: (%d,%d)" % [total_mines, flags_used, camera_x, camera_y]
+	else:
+		print("Warning: info_label not found in scene!")
 
 func _update_flag_mode_button():
-	if flag_mode:
-		flag_mode_button.text = "🚩 ON"
-		flag_mode_button.modulate = Color.YELLOW
+	if flag_mode_button:
+		if flag_mode:
+			flag_mode_button.text = "ON"
+			flag_mode_button.modulate = Color.YELLOW
+		else:
+			flag_mode_button.text = "OFF"
+			flag_mode_button.modulate = Color.WHITE
 	else:
-		flag_mode_button.text = "🚩 OFF"
-		flag_mode_button.modulate = Color.WHITE
+		print("Warning: flag_mode_button not found in scene!")
 
 func _on_flag_mode_button_pressed():
 	flag_mode = !flag_mode
@@ -728,6 +797,13 @@ func _update_upgrade_ui():
 	if chord_bonus_upgrade_button:
 		chord_bonus_upgrade_button.text = "Upgrade Chord (" + str(chord_bonus_upgrade_cost) + " coins)"
 		chord_bonus_upgrade_button.disabled = coins < chord_bonus_upgrade_cost
+	
+	# End game bonus upgrade
+	if end_game_bonus_level_label:
+		end_game_bonus_level_label.text = "End Game Bonus: +" + str(end_game_bonus) + " (Level " + str(end_game_bonus_upgrade_level) + ")"
+	if end_game_bonus_upgrade_button:
+		end_game_bonus_upgrade_button.text = "Upgrade End Bonus (" + str(end_game_bonus_upgrade_cost) + " coins)"
+		end_game_bonus_upgrade_button.disabled = coins < end_game_bonus_upgrade_cost
 
 func _on_flood_upgrade_button_pressed():
 	if coins >= flood_upgrade_cost:
@@ -756,10 +832,22 @@ func _on_chord_bonus_upgrade_button_pressed():
 		_update_upgrade_ui()
 		print("Chord bonus upgraded! New bonus: +", "%.1f" % float(chord_bonus), ", Next upgrade cost: ", chord_bonus_upgrade_cost)
 
+func _on_end_game_bonus_upgrade_button_pressed():
+	if coins >= end_game_bonus_upgrade_cost:
+		coins -= end_game_bonus_upgrade_cost
+		end_game_bonus_upgrade_level += 1
+		end_game_bonus += 100  # Increase bonus by 100 each upgrade (100 -> 200 -> 300 ...)
+		end_game_bonus_upgrade_cost += 30  # Increase cost by 30 each upgrade (30 -> 60 -> 90 ...)
+		_update_upgrade_ui()
+		print("End game bonus upgraded! New bonus: +", end_game_bonus, ", Next upgrade cost: ", end_game_bonus_upgrade_cost)
+
 # Game over and score functions
 func _show_game_over():
-	var game_time = Time.get_ticks_msec() / 1000.0 - game_start_time
-	var final_score = _calculate_final_score(game_time)
+	game_over = true
+	is_timing = false  # Stop the timer
+	var current_time = Time.get_ticks_msec() / 1000.0 - game_start_time
+	game_time = current_time  # Update the global game_time
+	var final_score = _calculate_final_score(current_time)
 	
 	if game_over_panel:
 		game_over_panel.visible = true
@@ -771,7 +859,7 @@ func _show_game_over():
 			final_score_label.text = "Final Score: " + str(final_score)
 		
 		if stats_label:
-			var minutes = int(game_time) / 60
+			var minutes = int(game_time) / 60.0
 			var seconds = int(game_time) % 60
 			stats_label.text = "Time: %02d:%02d\nTiles Revealed: %d\nChords Performed: %d\nCoins Earned: %.1f" % [minutes, seconds, tiles_revealed, chords_performed, coins]
 	else:
@@ -783,17 +871,17 @@ func _show_game_over():
 		print("Chords Performed: ", chords_performed)
 		print("Coins Earned: ", "%.1f" % coins)
 
-func _calculate_final_score(game_time: float) -> int:
+func _calculate_final_score(time_taken: float) -> int:
 	# Score calculation:
 	# Base score from current score
 	# Time bonus: 1000 points - (time in seconds * 5)
 	# Efficiency bonus: (tiles_revealed / game_time) * 100
 	# Chord bonus: chords_performed * 500
 	
-	var time_bonus = max(0, 1000 - int(game_time * 5))
+	var time_bonus = max(0, 1000 - int(time_taken * 5))
 	var efficiency_bonus = 0
-	if game_time > 0:
-		efficiency_bonus = int((tiles_revealed / game_time) * 100)
+	if time_taken > 0:
+		efficiency_bonus = int((tiles_revealed / time_taken) * 100)
 	var chord_score_bonus = chords_performed * 500
 	
 	var final_score = score + time_bonus + efficiency_bonus + chord_score_bonus
@@ -814,6 +902,8 @@ func _on_restart_button_pressed():
 	tiles_revealed = 0
 	chords_performed = 0
 	coins = 0.0  # Reset to float
+	game_time = 0.0
+	is_timing = false
 	
 	# Reset upgrades to initial values
 	flood_radius = 5
@@ -836,6 +926,11 @@ func _on_restart_button_pressed():
 	_update_info_display()
 	_update_upgrade_ui()
 	
+	# Restart the timer
+	game_start_time = Time.get_ticks_msec() / 1000.0
+	is_timing = true
+	_update_minimap()  # Update minimap after restart
+	
 	# Restart timer
 	game_start_time = Time.get_ticks_msec() / 1000.0
 	
@@ -843,3 +938,149 @@ func _on_restart_button_pressed():
 
 func _on_game_over_menu_button_pressed():
 	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+
+# Minimap functions
+func _create_minimap():
+	# Get minimap panel reference from scene instead of creating it
+	minimap_panel = get_node_or_null("UI/MinimapPanel")
+	if not minimap_panel:
+		print("Warning: MinimapPanel not found in scene!")
+		return
+	
+	# Get or create minimap title
+	var minimap_title = minimap_panel.get_node_or_null("MinimapTitle")
+	if not minimap_title:
+		minimap_title = Label.new()
+		minimap_title.text = "MINIMAP"
+		minimap_title.name = "MinimapTitle"
+		minimap_title.position = Vector2(10, 5)
+		minimap_title.size = Vector2(MINIMAP_SIZE, 20)
+		minimap_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		minimap_title.add_theme_font_size_override("font_size", 12)
+		minimap_panel.add_child(minimap_title)
+	
+	# Get or create minimap container
+	minimap_container = minimap_panel.get_node_or_null("MinimapContainer")
+	if not minimap_container:
+		minimap_container = Control.new()
+		minimap_container.name = "MinimapContainer"
+		minimap_container.position = Vector2(10, 25)
+		minimap_container.size = Vector2(MINIMAP_SIZE, MINIMAP_SIZE)
+		minimap_panel.add_child(minimap_container)
+	
+	# Create texture rect for minimap image
+	minimap_texture_rect = TextureRect.new()
+	minimap_texture_rect.size = Vector2(MINIMAP_SIZE, MINIMAP_SIZE)
+	minimap_texture_rect.stretch_mode = TextureRect.STRETCH_KEEP
+	minimap_container.add_child(minimap_texture_rect)
+	
+	# Create viewport rectangle indicator
+	minimap_viewport_rect = ColorRect.new()
+	minimap_viewport_rect.color = Color.RED
+	minimap_viewport_rect.modulate = Color(1, 0, 0, 0.5)  # Semi-transparent red
+	var viewport_size_on_minimap = Vector2(
+		VIEWPORT_SIZE * MINIMAP_CELL_SIZE,
+		VIEWPORT_SIZE * MINIMAP_CELL_SIZE
+	)
+	minimap_viewport_rect.size = viewport_size_on_minimap
+	minimap_container.add_child(minimap_viewport_rect)
+	
+	# Connect input events for minimap navigation
+	minimap_container.gui_input.connect(_on_minimap_input)
+	
+	# Create initial minimap image
+	_generate_minimap_image()
+
+func _generate_minimap_image():
+	# Safety check: ensure arrays are initialized
+	if revealed.is_empty() or flagged.is_empty() or minefield.is_empty():
+		print("Warning: Minimap called before minefield initialization")
+		return
+	
+	# Create image for minimap
+	minimap_image = Image.create(FIELD_SIZE, FIELD_SIZE, false, Image.FORMAT_RGB8)
+	
+	# Fill minimap with game state
+	for x in range(FIELD_SIZE):
+		for y in range(FIELD_SIZE):
+			var color = Color.GRAY  # Default unrevealed color
+			
+			if revealed[x][y]:
+				if minefield[x][y] == 1:
+					color = Color.RED  # Mine
+				else:
+					var adjacent_mines = _count_adjacent_mines(x, y)
+					if adjacent_mines == 0:
+						color = Color.WHITE  # Empty revealed
+					else:
+						# Color based on number (gradient from light blue to dark blue)
+						var intensity = float(adjacent_mines) / 8.0  # Max 8 adjacent mines
+						color = Color(0.5 - intensity * 0.3, 0.5 - intensity * 0.3, 1.0)  # Light to dark blue
+			elif flagged[x][y]:
+				color = Color.YELLOW  # Flagged
+			# else remains gray for unrevealed
+			
+			minimap_image.set_pixel(x, y, color)
+	
+	# Create texture from image
+	minimap_texture = ImageTexture.new()
+	minimap_texture.create_from_image(minimap_image)
+	minimap_texture_rect.texture = minimap_texture
+
+func _update_minimap():
+	if minimap_image and minimap_texture and minimap_texture_rect and minimap_viewport_rect:
+		# Safety check: ensure arrays are initialized
+		if revealed.is_empty() or flagged.is_empty() or minefield.is_empty():
+			return
+		
+		# Regenerate minimap image with current game state
+		_generate_minimap_image()
+		
+		# Update viewport indicator position
+		var viewport_pos_on_minimap = Vector2(
+			camera_x * MINIMAP_CELL_SIZE,
+			camera_y * MINIMAP_CELL_SIZE
+		)
+		minimap_viewport_rect.position = viewport_pos_on_minimap
+
+func _on_minimap_input(event: InputEvent):
+	if event is InputEventMouseButton:
+		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			minimap_is_dragging = true
+			_navigate_to_minimap_position(event.position)
+		else:
+			minimap_is_dragging = false
+	elif event is InputEventMouseMotion and minimap_is_dragging:
+		_navigate_to_minimap_position(event.position)
+
+func _navigate_to_minimap_position(minimap_pos: Vector2):
+	# Convert minimap position to field coordinates
+	var field_x = int(minimap_pos.x / MINIMAP_CELL_SIZE)
+	var field_y = int(minimap_pos.y / MINIMAP_CELL_SIZE)
+	
+	# Center the viewport on the clicked position
+	camera_x = int(field_x - VIEWPORT_SIZE / 2)
+	camera_y = int(field_y - VIEWPORT_SIZE / 2)
+	
+	# Clamp to valid bounds
+	camera_x = int(clamp(camera_x, 0, FIELD_SIZE - VIEWPORT_SIZE))
+	camera_y = int(clamp(camera_y, 0, FIELD_SIZE - VIEWPORT_SIZE))
+	
+	# Update the main view
+	_update_camera_position()
+	_update_minimap()  # Update minimap viewport indicator
+
+func _update_time_display():
+	if time_label:
+		var minutes = int(game_time) / 60.0
+		var seconds = int(game_time) % 60
+		time_label.text = "Time: %02d:%02d" % [minutes, seconds]
+
+func _on_end_game_button_pressed():
+	if not game_over:
+		# Player chose to end game early - give bonus
+		var bonus = end_game_bonus
+		coins += bonus
+		
+		print("Player ended game early. Bonus: +", bonus, " coins")
+		_show_game_over()

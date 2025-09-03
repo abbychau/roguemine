@@ -13,34 +13,25 @@ config_version=5
 config/name="RogueMine"
 run/main_scene="res://scenes/MainMenu.tscn"
 config/features=PackedStringArray("4.3", "Mobile")
+boot_splash/show_image=false
+boot_splash/fullsize=false
+boot_splash/use_filter=false
 config/icon="res://icon.svg"
 
 [display]
 
 window/size/viewport_width=540
 window/size/viewport_height=960
-window/size/mode=0
-window/size/resizable=true
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
 window/handheld/orientation=1
-
-[input_devices]
-
-pointing/emulate_touch_from_mouse=true
 
 [dotnet]
 
 project/assembly_name="RogueMine"
 
-[rendering]
+[input_devices]
 
-renderer/rendering_method="mobile"
-textures/canvas_textures/default_texture_filter=2
-
-[physics]
-
-2d/default_gravity=980.0
+pointing/emulate_touch_from_mouse=true
 
 [layer_names]
 
@@ -48,3 +39,8 @@ textures/canvas_textures/default_texture_filter=2
 2d_physics/layer_2="Enemies"
 2d_physics/layer_3="Walls"
 2d_physics/layer_4="Items"
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=2
+renderer/rendering_method="mobile"

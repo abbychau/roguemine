@@ -1,26 +1,93 @@
-[gd_scene load_steps=3 format=3 uid="uid://c8fy8j0xk3q1g"]
+[gd_scene load_steps=12 format=3 uid="uid://c8fy8j0xk3q1g"]
 
 [ext_resource type="Script" path="res://scripts/MainMenu.gd" id="1_2h3k4"]
+[ext_resource type="Texture2D" uid="uid://dr1e1vm8hfr3p" path="res://assets/background.jpg" id="2_background"]
+[ext_resource type="FontFile" uid="uid://c3nav2wcuptk" path="res://assets/ARCADECLASSIC.TTF" id="3_font"]
+[ext_resource type="AudioStream" uid="uid://cam1ubapfebq" path="res://assets/maou_bgm_piano17.ogg" id="4_bgm"]
 
-[sub_resource type="LabelSettings" id="LabelSettings_1k2l3"]
-font_size = 48
-font_color = Color(1, 1, 1, 1)
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ButtonHover"]
+bg_color = Color(0.3, 0.5, 0.7, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Button"]
+bg_color = Color(0.2, 0.4, 0.6, 0.9)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ButtonPressed"]
+bg_color = Color(0.1, 0.3, 0.5, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="Theme" id="Theme_MainMenu"]
+Button/colors/font_color = Color(1, 1, 1, 1)
+Button/colors/font_hover_color = Color(1, 1, 0.8, 1)
+Button/colors/font_pressed_color = Color(0.9, 0.9, 0.7, 1)
+Button/font_sizes/font_size = 28
+Button/fonts/font = ExtResource("3_font")
+Button/styles/hover = SubResource("StyleBoxFlat_ButtonHover")
+Button/styles/normal = SubResource("StyleBoxFlat_Button")
+Button/styles/pressed = SubResource("StyleBoxFlat_ButtonPressed")
+
+[sub_resource type="LabelSettings" id="LabelSettings_Title"]
+font = ExtResource("3_font")
+font_size = 72
+font_color = Color(1, 0.9, 0.3, 1)
+outline_size = 4
+outline_color = Color(0.2, 0.1, 0, 1)
+shadow_size = 3
+shadow_color = Color(0, 0, 0, 0.8)
+shadow_offset = Vector2(3, 3)
+
+[sub_resource type="LabelSettings" id="LabelSettings_Subtitle"]
+font = ExtResource("3_font")
+font_size = 24
+font_color = Color(0.8, 0.8, 0.8, 1)
+outline_size = 2
+outline_color = Color(0.1, 0.1, 0.1, 1)
+
+[sub_resource type="LabelSettings" id="LabelSettings_Version"]
+font = ExtResource("3_font")
+font_color = Color(0.6, 0.6, 0.6, 0.8)
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = SubResource("Theme_MainMenu")
 script = ExtResource("1_2h3k4")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="TextureRect" parent="."]
+modulate = Color(0.3, 0.3, 0.4, 0.8)
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.1, 0.1, 0.2, 1)
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_background")
+stretch_mode = 1
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="BackgroundOverlay" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.1, 0.15, 0.7)
+
+[node name="MainContainer" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -28,41 +95,56 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -200.0
-offset_top = -300.0
+offset_top = -350.0
 offset_right = 200.0
-offset_bottom = 300.0
+offset_bottom = 350.0
+grow_horizontal = 2
+grow_vertical = 2
 
-[node name="Title" type="Label" parent="VBoxContainer"]
+[node name="TitleContainer" type="VBoxContainer" parent="MainContainer"]
 layout_mode = 2
-text = "RogueMine"
-label_settings = SubResource("LabelSettings_1k2l3")
+
+[node name="Title" type="Label" parent="MainContainer/TitleContainer"]
+layout_mode = 2
+text = "ROGUEMINE"
+label_settings = SubResource("LabelSettings_Title")
 horizontal_alignment = 1
 
-[node name="Spacer1" type="Control" parent="VBoxContainer"]
+[node name="Subtitle" type="Label" parent="MainContainer/TitleContainer"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 100)
+text = "INFINITE   MINESWEEPER   ADVENTURE"
+label_settings = SubResource("LabelSettings_Subtitle")
+horizontal_alignment = 1
 
-[node name="PlayButton" type="Button" parent="VBoxContainer"]
-layout_mode = 2
+[node name="TitleSpacer" type="Control" parent="MainContainer"]
 custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+
+[node name="ButtonContainer" type="VBoxContainer" parent="MainContainer"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+
+[node name="PlayButton" type="Button" parent="MainContainer/ButtonContainer"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
 text = "PLAY"
 
-[node name="Spacer2" type="Control" parent="VBoxContainer"]
+[node name="ButtonSpacer1" type="Control" parent="MainContainer/ButtonContainer"]
+custom_minimum_size = Vector2(0, 15)
 layout_mode = 2
-custom_minimum_size = Vector2(0, 20)
 
-[node name="OptionsButton" type="Button" parent="VBoxContainer"]
+[node name="OptionsButton" type="Button" parent="MainContainer/ButtonContainer"]
+custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
-custom_minimum_size = Vector2(0, 80)
 text = "OPTIONS"
 
-[node name="Spacer3" type="Control" parent="VBoxContainer"]
+[node name="ButtonSpacer2" type="Control" parent="MainContainer/ButtonContainer"]
+custom_minimum_size = Vector2(0, 15)
 layout_mode = 2
-custom_minimum_size = Vector2(0, 20)
 
-[node name="QuitButton" type="Button" parent="VBoxContainer"]
+[node name="QuitButton" type="Button" parent="MainContainer/ButtonContainer"]
+custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
-custom_minimum_size = Vector2(0, 80)
 text = "QUIT"
 
 [node name="VersionLabel" type="Label" parent="."]
@@ -72,11 +154,33 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -100.0
-offset_top = -40.0
+offset_left = -120.0
+offset_top = -35.0
+offset_right = -20.0
+offset_bottom = -5.0
+grow_horizontal = 0
+grow_vertical = 0
 text = "v1.0.0"
+label_settings = SubResource("LabelSettings_Version")
 horizontal_alignment = 2
 
-[connection signal="pressed" from="VBoxContainer/PlayButton" to="." method="_on_play_button_pressed"]
-[connection signal="pressed" from="VBoxContainer/OptionsButton" to="." method="_on_options_button_pressed"]
-[connection signal="pressed" from="VBoxContainer/QuitButton" to="." method="_on_quit_button_pressed"]
+[node name="CopyrightLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -35.0
+offset_right = 200.0
+offset_bottom = -5.0
+grow_vertical = 0
+text = "MADE WITH GODOT"
+label_settings = SubResource("LabelSettings_Version")
+
+[node name="BGMPlayer" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("4_bgm")
+autoplay = true
+
+[connection signal="pressed" from="MainContainer/ButtonContainer/PlayButton" to="." method="_on_play_button_pressed"]
+[connection signal="pressed" from="MainContainer/ButtonContainer/OptionsButton" to="." method="_on_options_button_pressed"]
+[connection signal="pressed" from="MainContainer/ButtonContainer/QuitButton" to="." method="_on_quit_button_pressed"]

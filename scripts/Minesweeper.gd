@@ -5,15 +5,26 @@ extends Control
 # Player can swipe to move around the larger field
 
 # Grid settings
-const VIEWPORT_SIZE = 15  # 15x15 visible area
+const VIEWPORT_SIZE = 12  # 12x12 visible area
 const FIELD_SIZE = 500     # 50x50 total minefield (can be made larger)
-const CELL_SIZE = 26      # Size of each cell in pixels (smaller for coordinates)
+const CELL_SIZE = 37      # Size of each cell in pixels (larger for better visibility)
 const MINE_COUNT = FIELD_SIZE * FIELD_SIZE / 10.0  # 10% of the field size
 const COORD_SIZE = 20     # Size of coordinate labels
 
-# Minimap settings
-const MINIMAP_SIZE = 200  # Size of the minimap in pixels
-const MINIMAP_CELL_SIZE = float(MINIMAP_SIZE) / float(FIELD_SIZE)  # Each cell size in minimap
+# Sprite settings for minesweeper.png
+const SPRITE_SIZE = 16    # Each sprite is 16x16 pixels
+const SPRITES_PER_ROW = 4 # 4 sprites per row in the sprite sheet
+
+# Minimap settings - will be calculated dynamically based on panel size
+var minimap_size = 150  # Will be set based on actual panel size
+var minimap_cell_size = 0.0  # Will be calculated dynamically
+
+# Minimap color palette (tweak as desired)
+const MM_COLOR_UNREVEALED = Color(0.20, 0.20, 0.20)   # Dark gray
+const MM_COLOR_EMPTY_OPEN = Color(0.20, 0.80, 0.20)   # Green for opened ground
+const MM_COLOR_MINE = Color(0.90, 0.15, 0.15)         # Red for mines
+const MM_COLOR_FLAG = Color(1.00, 0.85, 0.10)         # Yellow for flags
+const MM_COLOR_NUM_BASE = Color(0.50, 0.65, 1.00)     # Base blue for numbers (will darken with count)
 
 # Game state
 var minefield = []        # 2D array of mine data
@@ -80,6 +91,9 @@ var x_coord_labels = []   # Array of X coordinate labels
 var y_coord_labels = []   # Array of Y coordinate labels
 var coord_container       # Container for coordinates and grid
 
+# Sprite references
+var minesweeper_texture   # The loaded sprite sheet texture
+
 # Upgrade panel UI references
 var upgrade_panel
 var coins_label
@@ -113,10 +127,47 @@ var minimap_image
 var minimap_texture
 var minimap_is_dragging = false
 
+# Get sprite region for a given sprite index (0-11)
+func _get_sprite_region(sprite_index: int) -> Rect2:
+	var col = sprite_index % SPRITES_PER_ROW
+	var row = int(sprite_index / SPRITES_PER_ROW)
+	return Rect2(col * SPRITE_SIZE, row * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE)
+
+# Get sprite index based on cell state
+func _get_sprite_index(field_x: int, field_y: int) -> int:
+	if flagged[field_x][field_y]:
+		return 11  # Flag sprite
+	elif revealed[field_x][field_y]:
+		if minefield[field_x][field_y] == 1:
+			return 10  # Bomb sprite
+		else:
+			var adjacent_mines = _count_adjacent_mines(field_x, field_y)
+			if adjacent_mines == 0:
+				return 8  # Empty sprite
+			else:
+				return adjacent_mines - 1  # Number sprites (0-7 for numbers 1-8)
+	else:
+		return 9  # Unopened sprite
+
+# Set sprite texture using AtlasTexture for proper region handling
+func _set_sprite_texture(texture_rect: TextureRect, sprite_index: int):
+	var atlas_texture = AtlasTexture.new()
+	atlas_texture.atlas = minesweeper_texture
+	atlas_texture.region = _get_sprite_region(sprite_index)
+	texture_rect.texture = atlas_texture
+
 func _ready():
 	print("Minesweeper loaded")
 	grid_container = $GameArea/GridContainer/MineGrid
 	coord_container = $GameArea/GridContainer
+
+	# Load the minesweeper sprite sheet
+	minesweeper_texture = load("res://assets/minesweeper.png")
+
+	# Get BGM player reference
+	var bgm_player = get_node_or_null("BGMPlayer")
+	if bgm_player and not bgm_player.playing:
+		bgm_player.play()
 	
 	# Initialize UI elements - no longer using TopPanel
 	info_label = get_node_or_null("UI/InfoLabel")  # Now at bottom
@@ -164,9 +215,13 @@ func _ready():
 	print("  chord_bonus_upgrade_button: ", chord_bonus_upgrade_button)
 	print("  game_over_panel: ", game_over_panel)
 	
-	# Set up the main container size
-	var total_size = VIEWPORT_SIZE * CELL_SIZE + COORD_SIZE
+	# Set up the main container size using the CELL_SIZE constant
+	var total_grid_size = VIEWPORT_SIZE * CELL_SIZE
+	var total_size = total_grid_size + COORD_SIZE
 	coord_container.size = Vector2(total_size, total_size)
+
+	# Store the cell size for use in grid creation
+	set_meta("actual_cell_size", CELL_SIZE)
 	
 	# Initialize the game
 	_initialize_minefield()
@@ -240,31 +295,34 @@ func _create_coordinate_labels():
 	for label in y_coord_labels:
 		if label:
 			label.queue_free()
-	
+
 	x_coord_labels.clear()
 	y_coord_labels.clear()
-	
+
+	# Get the calculated cell size from metadata
+	var actual_cell_size = get_meta("actual_cell_size", CELL_SIZE)
+
 	# Create X coordinate labels (top row)
 	for x in range(VIEWPORT_SIZE):
 		var label = Label.new()
 		label.text = str(camera_x + x)
-		label.size = Vector2(CELL_SIZE, COORD_SIZE)
+		label.size = Vector2(actual_cell_size, COORD_SIZE)
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		label.add_theme_font_size_override("font_size", 10)
-		label.position = Vector2(COORD_SIZE + x * CELL_SIZE, 0)
+		label.position = Vector2(COORD_SIZE + x * actual_cell_size, 0)
 		coord_container.add_child(label)
 		x_coord_labels.append(label)
-	
-	# Create Y coordinate labels (left column)  
+
+	# Create Y coordinate labels (left column)
 	for y in range(VIEWPORT_SIZE):
 		var label = Label.new()
 		label.text = str(camera_y + y)
-		label.size = Vector2(COORD_SIZE, CELL_SIZE)
+		label.size = Vector2(COORD_SIZE, actual_cell_size)
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		label.add_theme_font_size_override("font_size", 10)
-		label.position = Vector2(0, COORD_SIZE + y * CELL_SIZE)
+		label.position = Vector2(0, COORD_SIZE + y * actual_cell_size)
 		coord_container.add_child(label)
 		y_coord_labels.append(label)
 
@@ -272,33 +330,56 @@ func _create_visible_grid():
 	# Clear existing grid
 	for child in grid_container.get_children():
 		child.queue_free()
-	
+
 	cell_buttons = []
-	
-	# Set fixed grid container size and position
-	var total_grid_size = VIEWPORT_SIZE * CELL_SIZE
+
+	# Get the calculated cell size from metadata
+	var actual_cell_size = get_meta("actual_cell_size", CELL_SIZE)
+
+	# Set grid container size and position based on calculated cell size
+	var total_grid_size = VIEWPORT_SIZE * actual_cell_size
 	grid_container.size = Vector2(total_grid_size, total_grid_size)
 	grid_container.position = Vector2(COORD_SIZE, COORD_SIZE)
 	
-	# Create 15x15 grid of buttons for the viewport
+	# Create 12x12 grid of cells for the viewport
 	for y in range(VIEWPORT_SIZE):
 		cell_buttons.append([])
 		for x in range(VIEWPORT_SIZE):
+			# Create a container for each cell
+			var cell_container = Control.new()
+			cell_container.size = Vector2(actual_cell_size, actual_cell_size)
+			cell_container.position = Vector2(x * actual_cell_size, y * actual_cell_size)
+
+			# Create TextureRect for the sprite
+			var texture_rect = TextureRect.new()
+			texture_rect.size = Vector2(SPRITE_SIZE, SPRITE_SIZE)  # Use original sprite size
+			texture_rect.stretch_mode = TextureRect.STRETCH_KEEP
+			# Scale the texture rect to fill the cell
+			var scale_factor = float(actual_cell_size) / float(SPRITE_SIZE)
+			texture_rect.scale = Vector2(scale_factor, scale_factor)
+			# Start with unopened sprite (index 9) - will be set via AtlasTexture
+			_set_sprite_texture(texture_rect, 9)
+
+			# Create transparent button for input handling
 			var button = Button.new()
-			button.size = Vector2(CELL_SIZE, CELL_SIZE)
-			button.position = Vector2(x * CELL_SIZE, y * CELL_SIZE)
-			button.text = ""
-			button.flat = false
-			
-			# Store grid position in the button
+			button.size = Vector2(actual_cell_size, actual_cell_size)
+			button.flat = true
+			button.modulate = Color.TRANSPARENT
+
+			# Store grid position and texture rect reference in the button
 			button.set_meta("grid_x", x)
 			button.set_meta("grid_y", y)
-			
+			button.set_meta("texture_rect", texture_rect)
+
 			# Connect signals
 			button.pressed.connect(_on_cell_pressed.bind(x, y))
 			button.gui_input.connect(_on_cell_input.bind(x, y))
-			
-			grid_container.add_child(button)
+
+			# Add components to container
+			cell_container.add_child(texture_rect)
+			cell_container.add_child(button)
+
+			grid_container.add_child(cell_container)
 			cell_buttons[y].append(button)
 	
 	print("Grid created with fixed positioning")
@@ -323,8 +404,8 @@ func _update_camera_position():
 	# Update minimap viewport indicator position
 	if minimap_viewport_rect:
 		var viewport_pos_on_minimap = Vector2(
-			camera_x * MINIMAP_CELL_SIZE,
-			camera_y * MINIMAP_CELL_SIZE
+			camera_x * minimap_cell_size,
+			camera_y * minimap_cell_size
 		)
 		minimap_viewport_rect.position = viewport_pos_on_minimap
 
@@ -340,31 +421,21 @@ func _update_coordinate_labels():
 			y_coord_labels[y].text = str(camera_y + y)
 
 func _update_cell_display(button: Button, field_x: int, field_y: int):
+	var texture_rect = button.get_meta("texture_rect") as TextureRect
+
 	if field_x >= FIELD_SIZE or field_y >= FIELD_SIZE or field_x < 0 or field_y < 0:
-		button.text = ""
 		button.disabled = true
-		button.modulate = Color.GRAY
+		texture_rect.modulate = Color.GRAY
+		# Show unopened sprite for out-of-bounds areas
+		_set_sprite_texture(texture_rect, 9)
 		return
-	
+
 	button.disabled = false
-	button.modulate = Color.WHITE
-	
-	if flagged[field_x][field_y]:
-		button.text = "🚩"
-		button.modulate = Color.YELLOW
-	elif revealed[field_x][field_y]:
-		if minefield[field_x][field_y] == 1:
-			button.text = "💣"
-			button.modulate = Color.RED
-		else:
-			var adjacent_mines = _count_adjacent_mines(field_x, field_y)
-			button.text = str(adjacent_mines) if adjacent_mines > 0 else ""
-			button.modulate = Color.LIGHT_GRAY
-			button.flat = true
-	else:
-		button.text = ""
-		button.modulate = Color.WHITE
-		button.flat = false
+	texture_rect.modulate = Color.WHITE
+
+	# Get the appropriate sprite index and set the texture
+	var sprite_index = _get_sprite_index(field_x, field_y)
+	_set_sprite_texture(texture_rect, sprite_index)
 
 func _count_adjacent_mines(x: int, y: int) -> int:
 	var count = 0
@@ -543,53 +614,50 @@ func _toggle_flag(grid_x: int, grid_y: int):
 	_update_minimap()  # Update minimap when flags change
 
 func _reveal_cell(x: int, y: int):
-	# Limited flood reveal - use variable flood radius
+	# Limited flood reveal with animation - use variable flood radius
 	var origin_x = x
 	var origin_y = y
-	var cells_revealed = 0  # Count cells revealed for coin reward
-	
-	# Use iterative approach with a queue to avoid stack overflow
-	var cells_to_reveal = []
-	cells_to_reveal.push_back(Vector2(x, y))
-	
-	while cells_to_reveal.size() > 0:
-		var current_cell = cells_to_reveal.pop_front()
+
+	# Organize cells by distance for animated reveal
+	var cells_by_distance = {}
+	var max_distance = 0
+
+	# First pass: find all cells to reveal and organize by distance
+	var cells_to_check = []
+	cells_to_check.push_back(Vector2(x, y))
+	var checked_cells = {}
+
+	while cells_to_check.size() > 0:
+		var current_cell = cells_to_check.pop_front()
 		var current_x = int(current_cell.x)
 		var current_y = int(current_cell.y)
-		
+
+		# Create unique key for this cell
+		var cell_key = str(current_x) + "," + str(current_y)
+		if checked_cells.has(cell_key):
+			continue
+		checked_cells[cell_key] = true
+
 		# Check bounds
 		if current_x < 0 or current_x >= FIELD_SIZE or current_y < 0 or current_y >= FIELD_SIZE:
 			continue
-		
+
 		# Check if we're within the flood radius from the origin (Manhattan distance)
 		var distance_from_origin = abs(current_x - origin_x) + abs(current_y - origin_y)
 		if distance_from_origin > flood_radius:
 			continue
-		
+
 		# Skip if already revealed or flagged
 		if revealed[current_x][current_y] or flagged[current_x][current_y]:
 			continue
-		
-		# Reveal the cell and award coin with multiplier
-		revealed[current_x][current_y] = true
-		cells_revealed += 1
-		tiles_revealed += 1  # Track total tiles revealed for score
-		var coins_earned = 1.0 * coin_multiplier  # Use float calculation
-		coins += coins_earned
-		score += int(coins_earned * 10)  # 10 points per coin earned (convert to int for score)
-		
-		# Show floating coin text for this cell
-		_show_floating_coin_text(current_x, current_y, coins_earned)
-		
-		# Check if it's a mine
-		if minefield[current_x][current_y] == 1:
-			print("Game Over! Hit a mine at (", current_x, ",", current_y, ")")
-			game_over = true
-			_show_all_mines()
-			_show_game_over()
-			return
-		
-		# If cell has no adjacent mines, add adjacent cells to the queue
+
+		# Add to distance group
+		if not cells_by_distance.has(distance_from_origin):
+			cells_by_distance[distance_from_origin] = []
+		cells_by_distance[distance_from_origin].append(Vector2(current_x, current_y))
+		max_distance = max(max_distance, distance_from_origin)
+
+		# If cell has no adjacent mines, add adjacent cells to check
 		var adjacent_mines = _count_adjacent_mines(current_x, current_y)
 		if adjacent_mines == 0:
 			for dx in range(-1, 2):
@@ -598,18 +666,96 @@ func _reveal_cell(x: int, y: int):
 						continue
 					var next_x = current_x + dx
 					var next_y = current_y + dy
-					# Only add to queue if within bounds, within flood radius, and not already revealed/flagged
-					var next_distance = abs(next_x - origin_x) + abs(next_y - origin_y)
-					if (next_x >= 0 and next_x < FIELD_SIZE and 
-						next_y >= 0 and next_y < FIELD_SIZE and
-						next_distance <= flood_radius and
-						not revealed[next_x][next_y] and not flagged[next_x][next_y]):
-						cells_to_reveal.push_back(Vector2(next_x, next_y))
-	
-	# Update UI after revealing cells
-	_update_upgrade_ui()
-	_update_minimap()  # Update minimap when cells are revealed
-	print("Revealed ", cells_revealed, " cells, earned ", "%.1f" % (cells_revealed * coin_multiplier), " coins. Total coins: ", "%.1f" % coins)
+					var next_key = str(next_x) + "," + str(next_y)
+					if not checked_cells.has(next_key):
+						cells_to_check.push_back(Vector2(next_x, next_y))
+
+	# Second pass: animate the reveal in waves
+	_animate_flood_reveal(cells_by_distance, max_distance, origin_x, origin_y)
+
+func _animate_flood_reveal(cells_by_distance: Dictionary, max_distance: int, _origin_x: int, _origin_y: int):
+	var animation_delay = 0.05  # Delay between each wave in seconds
+
+	# Reveal cells in waves based on distance
+	for distance in range(max_distance + 1):
+		if cells_by_distance.has(distance):
+			var cells_at_distance = cells_by_distance[distance]
+
+			if distance == 0:
+				# Reveal center cells immediately
+				_reveal_wave(cells_at_distance, distance == max_distance)
+			else:
+				# Create a timer for this wave
+				var timer = Timer.new()
+				timer.wait_time = distance * animation_delay
+				timer.one_shot = true
+				add_child(timer)
+
+				# Connect the timer to reveal this wave of cells
+				timer.timeout.connect(_reveal_wave.bind(cells_at_distance, distance == max_distance))
+				timer.start()
+
+func _reveal_wave(cells: Array, is_final_wave: bool):
+
+	for cell in cells:
+		var current_x = int(cell.x)
+		var current_y = int(cell.y)
+
+		# Skip if already revealed or flagged
+		if revealed[current_x][current_y] or flagged[current_x][current_y]:
+			continue
+
+		# Reveal the cell and award coin with multiplier
+		revealed[current_x][current_y] = true
+		tiles_revealed += 1  # Track total tiles revealed for score
+		var coins_earned = 1.0 * coin_multiplier  # Use float calculation
+		coins += coins_earned
+		score += int(coins_earned * 10)  # 10 points per coin earned (convert to int for score)
+
+		# Show floating coin text for this cell
+		_show_floating_coin_text(current_x, current_y, coins_earned)
+
+		# Add visual effect for the reveal animation
+		_add_reveal_animation_effect(current_x, current_y)
+
+		# Check if it's a mine
+		if minefield[current_x][current_y] == 1:
+			print("Game Over! Hit a mine at (", current_x, ",", current_y, ")")
+			game_over = true
+			_show_all_mines()
+			_show_game_over()
+			return
+
+	# Update the display for this wave
+	_update_camera_position()
+
+	# If this is the final wave, update UI
+	if is_final_wave:
+		_update_upgrade_ui()
+		_update_minimap()  # Update minimap when cells are revealed
+		print("Flood reveal completed! Total coins: ", "%.1f" % coins)
+
+func _add_reveal_animation_effect(world_x: int, world_y: int):
+	# Only show animation if the cell is visible on screen
+	var screen_x = (world_x - camera_x) * get_meta("actual_cell_size", CELL_SIZE)
+	var screen_y = (world_y - camera_y) * get_meta("actual_cell_size", CELL_SIZE)
+
+	if screen_x >= 0 and screen_x < VIEWPORT_SIZE * get_meta("actual_cell_size", CELL_SIZE) and screen_y >= 0 and screen_y < VIEWPORT_SIZE * get_meta("actual_cell_size", CELL_SIZE):
+		# Create a visual effect - a brief flash/pulse
+		var effect_rect = ColorRect.new()
+		effect_rect.color = Color.WHITE
+		effect_rect.modulate = Color(1, 1, 1, 0.7)  # Semi-transparent white
+		effect_rect.position = Vector2(screen_x, screen_y)
+		effect_rect.size = Vector2(get_meta("actual_cell_size", CELL_SIZE), get_meta("actual_cell_size", CELL_SIZE))
+
+		# Add to the grid container (temporary)
+		grid_container.add_child(effect_rect)
+
+		# Create animation - quick flash effect
+		var tween = create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(effect_rect, "modulate", Color.TRANSPARENT, 0.3)
+		tween.tween_callback(effect_rect.queue_free).set_delay(0.3)
 
 func _show_floating_coin_text(world_x: int, world_y: int, coin_amount: float = 1.0):
 	# Create floating "+$X.X" text at the world coordinates
@@ -673,7 +819,7 @@ func _show_all_mines():
 			if minefield[x][y] == 1:
 				revealed[x][y] = true
 
-func _handle_touch_start(pos: Vector2, grid_x: int = -1, grid_y: int = -1):
+func _handle_touch_start(pos: Vector2, _grid_x: int = -1, _grid_y: int = -1):
 	is_dragging = false  # Start as not dragging
 	drag_start_pos = pos
 	last_camera_pos = Vector2(camera_x, camera_y)
@@ -697,17 +843,20 @@ func _handle_touch_end(grid_x: int = -1, grid_y: int = -1):
 func _handle_drag(pos: Vector2):
 	var delta = drag_start_pos - pos
 	var drag_distance = delta.length()
-	
+
 	# If we've moved enough, start treating this as a drag
 	if drag_distance > 15:  # Reduced threshold for more responsive drag detection
 		is_dragging = true
-	
+
 	if is_dragging:
-		var sensitivity = 0.08  # Slightly increased sensitivity for smoother dragging
-		
+		# Calculate proportional sensitivity based on cell size
+		# This makes dragging 1:1 - moving one cell width on screen moves one cell in the field
+		var actual_cell_size = get_meta("actual_cell_size", CELL_SIZE)
+		var sensitivity = 1.0 / float(actual_cell_size)
+
 		var new_camera_x = int(last_camera_pos.x + delta.x * sensitivity)
 		var new_camera_y = int(last_camera_pos.y + delta.y * sensitivity)
-		
+
 		# Only update if position actually changed
 		if new_camera_x != camera_x or new_camera_y != camera_y:
 			camera_x = new_camera_x
@@ -717,14 +866,14 @@ func _handle_drag(pos: Vector2):
 func _update_info_display():
 	var total_mines = MINE_COUNT
 	var flags_used = 0
-	var revealed_count = 0
+	var _revealed_count = 0
 	
 	for x in range(FIELD_SIZE):
 		for y in range(FIELD_SIZE):
 			if flagged[x][y]:
 				flags_used += 1
 			if revealed[x][y]:
-				revealed_count += 1
+				_revealed_count += 1
 	
 	if info_label:
 		info_label.text = "Mines: %d | Flags: %d | Pos: (%d,%d)" % [total_mines, flags_used, camera_x, camera_y]
@@ -946,7 +1095,12 @@ func _create_minimap():
 	if not minimap_panel:
 		print("Warning: MinimapPanel not found in scene!")
 		return
-	
+
+	# Calculate minimap size based on actual panel size
+	var panel_size = minimap_panel.size
+	minimap_size = min(panel_size.x - 20, panel_size.y - 35)  # Leave margins for title and borders
+	minimap_cell_size = float(minimap_size) / float(FIELD_SIZE)
+
 	# Get or create minimap title
 	var minimap_title = minimap_panel.get_node_or_null("MinimapTitle")
 	if not minimap_title:
@@ -954,23 +1108,23 @@ func _create_minimap():
 		minimap_title.text = "MINIMAP"
 		minimap_title.name = "MinimapTitle"
 		minimap_title.position = Vector2(10, 5)
-		minimap_title.size = Vector2(MINIMAP_SIZE, 20)
+		minimap_title.size = Vector2(minimap_size, 20)
 		minimap_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		minimap_title.add_theme_font_size_override("font_size", 12)
 		minimap_panel.add_child(minimap_title)
-	
+
 	# Get or create minimap container
 	minimap_container = minimap_panel.get_node_or_null("MinimapContainer")
 	if not minimap_container:
 		minimap_container = Control.new()
 		minimap_container.name = "MinimapContainer"
 		minimap_container.position = Vector2(10, 25)
-		minimap_container.size = Vector2(MINIMAP_SIZE, MINIMAP_SIZE)
+		minimap_container.size = Vector2(minimap_size, minimap_size)
 		minimap_panel.add_child(minimap_container)
-	
+
 	# Create texture rect for minimap image
 	minimap_texture_rect = TextureRect.new()
-	minimap_texture_rect.size = Vector2(MINIMAP_SIZE, MINIMAP_SIZE)
+	minimap_texture_rect.size = Vector2(minimap_size, minimap_size)
 	minimap_texture_rect.stretch_mode = TextureRect.STRETCH_KEEP
 	minimap_container.add_child(minimap_texture_rect)
 	
@@ -979,8 +1133,8 @@ func _create_minimap():
 	minimap_viewport_rect.color = Color.RED
 	minimap_viewport_rect.modulate = Color(1, 0, 0, 0.5)  # Semi-transparent red
 	var viewport_size_on_minimap = Vector2(
-		VIEWPORT_SIZE * MINIMAP_CELL_SIZE,
-		VIEWPORT_SIZE * MINIMAP_CELL_SIZE
+		VIEWPORT_SIZE * minimap_cell_size,
+		VIEWPORT_SIZE * minimap_cell_size
 	)
 	minimap_viewport_rect.size = viewport_size_on_minimap
 	minimap_container.add_child(minimap_viewport_rect)
@@ -1003,21 +1157,24 @@ func _generate_minimap_image():
 	# Fill minimap with game state
 	for x in range(FIELD_SIZE):
 		for y in range(FIELD_SIZE):
-			var color = Color.GRAY  # Default unrevealed color
+			var color = MM_COLOR_UNREVEALED  # Default unrevealed color
 			
 			if revealed[x][y]:
 				if minefield[x][y] == 1:
-					color = Color.RED  # Mine
+					color = MM_COLOR_MINE  # Mine
 				else:
 					var adjacent_mines = _count_adjacent_mines(x, y)
 					if adjacent_mines == 0:
-						color = Color.WHITE  # Empty revealed
+						# Opened ground (no adjacent mines) in green for better readability
+						color = MM_COLOR_EMPTY_OPEN
 					else:
-						# Color based on number (gradient from light blue to dark blue)
+						# Color based on number (light to dark blue) to distinguish from green open areas
 						var intensity = float(adjacent_mines) / 8.0  # Max 8 adjacent mines
-						color = Color(0.5 - intensity * 0.3, 0.5 - intensity * 0.3, 1.0)  # Light to dark blue
+						var blue = 1.0
+						var rg = 0.55 - intensity * 0.35
+						color = Color(rg, rg, blue)
 			elif flagged[x][y]:
-				color = Color.YELLOW  # Flagged
+				color = MM_COLOR_FLAG  # Flagged
 			# else remains gray for unrevealed
 			
 			minimap_image.set_pixel(x, y, color)
@@ -1038,8 +1195,8 @@ func _update_minimap():
 		
 		# Update viewport indicator position
 		var viewport_pos_on_minimap = Vector2(
-			camera_x * MINIMAP_CELL_SIZE,
-			camera_y * MINIMAP_CELL_SIZE
+			camera_x * minimap_cell_size,
+			camera_y * minimap_cell_size
 		)
 		minimap_viewport_rect.position = viewport_pos_on_minimap
 
@@ -1055,8 +1212,8 @@ func _on_minimap_input(event: InputEvent):
 
 func _navigate_to_minimap_position(minimap_pos: Vector2):
 	# Convert minimap position to field coordinates
-	var field_x = int(minimap_pos.x / MINIMAP_CELL_SIZE)
-	var field_y = int(minimap_pos.y / MINIMAP_CELL_SIZE)
+	var field_x = int(minimap_pos.x / minimap_cell_size)
+	var field_y = int(minimap_pos.y / minimap_cell_size)
 	
 	# Center the viewport on the clicked position
 	camera_x = int(field_x - VIEWPORT_SIZE / 2)

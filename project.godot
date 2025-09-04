@@ -29,6 +29,11 @@ window/handheld/orientation=1
 
 project/assembly_name="RogueMine"
 
+[gui]
+
+fonts/dynamic_fonts/use_oversampling=false
+theme/custom_font="res://assets/ARCADECLASSIC.TTF"
+
 [input_devices]
 
 pointing/emulate_touch_from_mouse=true

@@ -31,8 +31,11 @@ router.post('/', validateHighscoreSubmission, async (req, res) => {
     const { playerName, score, timeTaken, tilesRevealed, chordsPerformed, timestamp } = decodedResult.data;
 
     // Comprehensive server-side validation
+    console.log('SERVER DEBUG: Starting validation for:', { playerName, score, timeTaken, tilesRevealed, chordsPerformed });
     const validation = validateHighscoreData(playerName, score, timeTaken, tilesRevealed, chordsPerformed);
+    console.log('SERVER DEBUG: Validation result:', validation);
     if (!validation.isValid) {
+      console.log('SERVER DEBUG: Validation failed with errors:', validation.errors);
       return res.status(400).json({
         error: 'Validation failed',
         details: validation.errors

@@ -1,8 +1,40 @@
-[gd_scene load_steps=4 format=3 uid="uid://bmx80demhvjch"]
+[gd_scene load_steps=10 format=3 uid="uid://bmx80demhvjch"]
 
 [ext_resource type="Script" path="res://scripts/Minesweeper.gd" id="1_minesweeper"]
 [ext_resource type="Texture2D" uid="uid://dr1e1vm8hfr3p" path="res://assets/background.jpg" id="2_background"]
 [ext_resource type="AudioStream" uid="uid://cam1ubapfebq" path="res://assets/maou_bgm_piano17.ogg" id="3_bgm"]
+[ext_resource type="AudioStream" uid="uid://bqj8k2wgbtmf3" path="res://assets/maou_se_system48.ogg" id="4_tile_open_sfx"]
+[ext_resource type="AudioStream" uid="uid://cqj8k2wgbtmf4" path="res://assets/maou_se_system49.ogg" id="5_chord_sfx"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ButtonHover"]
+bg_color = Color(0.3, 0.4, 0.6, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ButtonNormal"]
+bg_color = Color(0.2, 0.3, 0.5, 0.8)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ButtonPressed"]
+bg_color = Color(0.1, 0.2, 0.4, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="Theme" id="Theme_Minesweeper"]
+Button/colors/font_color = Color(1, 1, 1, 1)
+Button/colors/font_hover_color = Color(1, 1, 0.8, 1)
+Button/colors/font_pressed_color = Color(0.9, 0.9, 0.7, 1)
+Button/font_sizes/font_size = 14
+Button/styles/hover = SubResource("StyleBoxFlat_ButtonHover")
+Button/styles/normal = SubResource("StyleBoxFlat_ButtonNormal")
+Button/styles/pressed = SubResource("StyleBoxFlat_ButtonPressed")
 
 [node name="Minesweeper" type="Control"]
 layout_mode = 3
@@ -11,6 +43,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = SubResource("Theme_Minesweeper")
 script = ExtResource("1_minesweeper")
 
 [node name="Background" type="TextureRect" parent="."]
@@ -33,52 +66,45 @@ stretch_mode = 4
 offset_left = 20.0
 offset_top = 20.0
 offset_right = 120.0
-offset_bottom = 70.0
+offset_bottom = 56.0
 text = "← MENU"
 
 [node name="MinimapPanel" type="Panel" parent="UI"]
-offset_left = 192.0
-offset_top = 20.0
-offset_right = 336.0
-offset_bottom = 176.0
+offset_left = 376.0
+offset_top = 16.0
+offset_right = 520.0
+offset_bottom = 172.0
 
 [node name="FlagModeButton" type="Button" parent="UI"]
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -120.0
-offset_top = 48.0
-offset_right = -20.0
-offset_bottom = 88.0
+offset_left = -520.0
+offset_top = 64.0
+offset_right = -420.0
+offset_bottom = 104.0
 grow_horizontal = 0
 text = "OFF"
 
 [node name="FlagModeLabel" type="Label" parent="UI"]
-offset_left = 420.0
-offset_top = 16.0
-offset_right = 520.0
-offset_bottom = 46.0
-text = "Tap-to-Flag"
-horizontal_alignment = 1
-
-[node name="TimeLabel" type="Label" parent="UI"]
 offset_left = 20.0
-offset_top = 80.0
+offset_top = 96.0
 offset_right = 120.0
-offset_bottom = 110.0
-text = "Time: 00:00"
+offset_bottom = 126.0
+text = "Tap-to-Flag"
 horizontal_alignment = 1
 
 [node name="EndGameButton" type="Button" parent="UI"]
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -120.0
-offset_top = 104.0
-offset_right = -20.0
-offset_bottom = 135.0
+offset_left = -520.0
+offset_top = 126.0
+offset_right = -420.0
+offset_bottom = 174.0
 grow_horizontal = 0
-text = "END GAME"
+text = "END GAME
+GET SCORE"
 
 [node name="InfoLabel" type="Label" parent="UI"]
 anchors_preset = 12
@@ -99,6 +125,15 @@ offset_top = -250.0
 grow_horizontal = 2
 grow_vertical = 0
 
+[node name="TimeLabel" type="Label" parent="UI/UpgradePanel"]
+layout_mode = 0
+offset_left = 288.0
+offset_top = 7.0
+offset_right = 388.0
+offset_bottom = 31.0
+text = "Time: 00:00"
+horizontal_alignment = 1
+
 [node name="UpgradeTitle" type="Label" parent="UI/UpgradePanel"]
 layout_mode = 2
 offset_left = 10.0
@@ -110,10 +145,10 @@ horizontal_alignment = 1
 
 [node name="CoinsLabel" type="Label" parent="UI/UpgradePanel"]
 layout_mode = 2
-offset_left = 413.0
-offset_top = 6.0
-offset_right = 474.0
-offset_bottom = 29.0
+offset_left = 424.0
+offset_top = 7.0
+offset_right = 485.0
+offset_bottom = 30.0
 text = "Coins: 0"
 horizontal_alignment = 1
 
@@ -124,7 +159,6 @@ offset_top = 48.0
 offset_right = 250.0
 offset_bottom = 80.0
 text = "Flood Level: 1 (Radius: 5)"
-horizontal_alignment = 1
 autowrap_mode = 2
 
 [node name="FloodUpgradeButton" type="Button" parent="UI/UpgradePanel"]
@@ -143,7 +177,6 @@ offset_top = 90.0
 offset_right = 240.0
 offset_bottom = 113.0
 text = "Multiplier: x1.0 (Level 1)"
-horizontal_alignment = 1
 autowrap_mode = 2
 
 [node name="CoinMultiplierUpgradeButton" type="Button" parent="UI/UpgradePanel"]
@@ -157,12 +190,11 @@ autowrap_mode = 2
 
 [node name="ChordBonusLevelLabel" type="Label" parent="UI/UpgradePanel"]
 layout_mode = 2
-offset_left = 8.0
-offset_top = 131.0
-offset_right = 264.0
-offset_bottom = 154.0
+offset_left = 19.0
+offset_top = 130.0
+offset_right = 263.0
+offset_bottom = 153.0
 text = "Chord Bonus: +0 (Level 1)"
-horizontal_alignment = 1
 autowrap_mode = 2
 
 [node name="ChordBonusUpgradeButton" type="Button" parent="UI/UpgradePanel"]
@@ -176,12 +208,11 @@ autowrap_mode = 2
 
 [node name="EndGameBonusLevelLabel" type="Label" parent="UI/UpgradePanel"]
 layout_mode = 2
-offset_left = 8.0
+offset_left = 19.0
 offset_top = 170.0
-offset_right = 264.0
+offset_right = 275.0
 offset_bottom = 193.0
 text = "End Game Bonus: +100 (Level 1)"
-horizontal_alignment = 1
 autowrap_mode = 2
 
 [node name="EndGameBonusUpgradeButton" type="Button" parent="UI/UpgradePanel"]
@@ -282,6 +313,14 @@ anchors_preset = 0
 [node name="BGMPlayer" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("3_bgm")
 autoplay = true
+
+[node name="TileOpenSFX" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("4_tile_open_sfx")
+volume_db = -5.0
+
+[node name="ChordSFX" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("5_chord_sfx")
+volume_db = -5.0
 
 [connection signal="pressed" from="UI/BackButton" to="." method="_on_back_button_pressed"]
 [connection signal="pressed" from="UI/FlagModeButton" to="." method="_on_flag_mode_button_pressed"]

@@ -136,7 +136,7 @@ layout_mode = 2
 [node name="OptionsButton" type="Button" parent="MainContainer/ButtonContainer"]
 custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
-text = "OPTIONS"
+text = "HIGHSCORE"
 
 [node name="ButtonSpacer2" type="Control" parent="MainContainer/ButtonContainer"]
 custom_minimum_size = Vector2(0, 15)

@@ -28,12 +28,11 @@ func _on_play_button_pressed():
 	get_tree().change_scene_to_file("res://scenes/Minesweeper.tscn")
 
 func _on_options_button_pressed():
-	print("Options button pressed")
+	print("Highscore button pressed")
 	_animate_button_press(options_button)
 	await get_tree().create_timer(0.1).timeout
-	# TODO: Change to options scene when created
-	# get_tree().change_scene_to_file("res://scenes/OptionsMenu.tscn")
-	_show_message("plurk.com/abbychau")
+	# Change to highscore scene
+	get_tree().change_scene_to_file("res://scenes/HighscoreMenu.tscn")
 
 func _on_quit_button_pressed():
 	print("Quit button pressed")

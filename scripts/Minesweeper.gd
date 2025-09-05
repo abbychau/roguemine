@@ -127,6 +127,10 @@ var minimap_image
 var minimap_texture
 var minimap_is_dragging = false
 
+# Audio references
+var tile_open_sfx
+var chord_sfx
+
 # Get sprite region for a given sprite index (0-11)
 func _get_sprite_region(sprite_index: int) -> Rect2:
 	var col = sprite_index % SPRITES_PER_ROW
@@ -168,6 +172,19 @@ func _ready():
 	var bgm_player = get_node_or_null("BGMPlayer")
 	if bgm_player and not bgm_player.playing:
 		bgm_player.play()
+
+	# Get sound effect references
+	tile_open_sfx = get_node_or_null("TileOpenSFX")
+	chord_sfx = get_node_or_null("ChordSFX")
+
+	# Debug: Check if sound effects are properly loaded
+	print("Sound effect nodes loaded:")
+	print("  tile_open_sfx: ", tile_open_sfx)
+	print("  chord_sfx: ", chord_sfx)
+	if tile_open_sfx:
+		print("  tile_open_sfx.stream: ", tile_open_sfx.stream)
+	if chord_sfx:
+		print("  chord_sfx.stream: ", chord_sfx.stream)
 	
 	# Initialize UI elements - no longer using TopPanel
 	info_label = get_node_or_null("UI/InfoLabel")  # Now at bottom
@@ -480,6 +497,10 @@ func _chord_reveal(x: int, y: int):
 	# Award chord bonus if any cells were revealed
 	if cells_revealed_by_chord > 0:
 		chords_performed += 1  # Track successful chords for score
+
+		# Play chord sound effect
+		_play_chord_sound()
+
 		if chord_bonus > 0:
 			var bonus_coins = float(chord_bonus)  # Convert to float
 			coins += bonus_coins
@@ -712,6 +733,9 @@ func _reveal_wave(cells: Array, is_final_wave: bool):
 		coins += coins_earned
 		score += int(coins_earned * 10)  # 10 points per coin earned (convert to int for score)
 
+		# Play tile open sound effect
+		_play_tile_open_sound()
+
 		# Show floating coin text for this cell
 		_show_floating_coin_text(current_x, current_y, coins_earned)
 
@@ -897,8 +921,53 @@ func _on_flag_mode_button_pressed():
 	print("Flag mode: ", "ON" if flag_mode else "OFF")
 
 func _on_back_button_pressed():
-	print("Back to main menu")
+	print("Back button pressed")
+
+	# Check if any tiles have been revealed (game in progress)
+	if tiles_revealed > 0 and not game_over:
+		# Show confirmation dialog
+		_show_back_confirmation_dialog()
+	else:
+		# No tiles revealed or game is over, go back immediately
+		_go_back_to_menu()
+
+func _show_back_confirmation_dialog():
+	"""Show confirmation dialog when trying to go back with tiles revealed"""
+	var dialog = ConfirmationDialog.new()
+	dialog.title = "Leave Game?"
+	dialog.dialog_text = "You have revealed " + str(tiles_revealed) + " tiles.\nAre you sure you want to leave and lose your progress?"
+
+	# Add dialog to scene
+	add_child(dialog)
+	dialog.popup_centered()
+
+	# Connect signals
+	dialog.confirmed.connect(_go_back_to_menu)
+	dialog.tree_exited.connect(dialog.queue_free)
+
+func _go_back_to_menu():
+	"""Actually go back to the main menu"""
+	print("Going back to main menu")
 	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+
+# Audio helper functions
+func _play_tile_open_sound():
+	"""Play the tile open sound effect"""
+	print("Attempting to play tile open sound...")
+	if tile_open_sfx:
+		print("  tile_open_sfx found, playing...")
+		tile_open_sfx.play()
+	else:
+		print("  ERROR: tile_open_sfx is null!")
+
+func _play_chord_sound():
+	"""Play the chord action sound effect"""
+	print("Attempting to play chord sound...")
+	if chord_sfx:
+		print("  chord_sfx found, playing...")
+		chord_sfx.play()
+	else:
+		print("  ERROR: chord_sfx is null!")
 
 func _on_game_area_input(event: InputEvent):
 	# Handle swipe gestures on the game area
@@ -959,8 +1028,9 @@ func _on_flood_upgrade_button_pressed():
 		coins -= flood_upgrade_cost
 		flood_upgrade_level += 1
 		flood_radius += 2  # Increase radius by 2 each upgrade
-		flood_upgrade_cost = int(flood_upgrade_cost * 1.5)  # Increase cost by 50% each upgrade
+		flood_upgrade_cost = int(flood_upgrade_cost * 1.1)  # Increase cost by 10% each upgrade
 		_update_upgrade_ui()
+		_play_chord_sound()  # Play upgrade sound effect
 		print("Flood upgraded! New radius: ", flood_radius, ", Next upgrade cost: ", flood_upgrade_cost)
 
 func _on_coin_multiplier_upgrade_button_pressed():
@@ -968,8 +1038,9 @@ func _on_coin_multiplier_upgrade_button_pressed():
 		coins -= coin_multiplier_upgrade_cost
 		coin_multiplier_upgrade_level += 1
 		coin_multiplier += 0.1  # Increase multiplier by 0.1 each upgrade (1.0 -> 1.1 -> 1.2 ...)
-		coin_multiplier_upgrade_cost = int(coin_multiplier_upgrade_cost * 1.6)  # Increase cost by 60% each upgrade
+		coin_multiplier_upgrade_cost = int(coin_multiplier_upgrade_cost * 1.15)  # Increase cost by 15% each upgrade
 		_update_upgrade_ui()
+		_play_chord_sound()  # Play upgrade sound effect
 		print("Coin multiplier upgraded! New multiplier: x", "%.1f" % coin_multiplier, ", Next upgrade cost: ", coin_multiplier_upgrade_cost)
 
 func _on_chord_bonus_upgrade_button_pressed():
@@ -977,8 +1048,9 @@ func _on_chord_bonus_upgrade_button_pressed():
 		coins -= chord_bonus_upgrade_cost
 		chord_bonus_upgrade_level += 1
 		chord_bonus += 3  # Increase bonus by 3 each upgrade (0 -> 3 -> 6 -> 9 ...)
-		chord_bonus_upgrade_cost = int(chord_bonus_upgrade_cost * 1.7)  # Increase cost by 70% each upgrade
+		chord_bonus_upgrade_cost = int(chord_bonus_upgrade_cost * 1.2)  # Increase cost by 20% each upgrade
 		_update_upgrade_ui()
+		_play_chord_sound()  # Play upgrade sound effect
 		print("Chord bonus upgraded! New bonus: +", "%.1f" % float(chord_bonus), ", Next upgrade cost: ", chord_bonus_upgrade_cost)
 
 func _on_end_game_bonus_upgrade_button_pressed():
@@ -986,8 +1058,9 @@ func _on_end_game_bonus_upgrade_button_pressed():
 		coins -= end_game_bonus_upgrade_cost
 		end_game_bonus_upgrade_level += 1
 		end_game_bonus += 100  # Increase bonus by 100 each upgrade (100 -> 200 -> 300 ...)
-		end_game_bonus_upgrade_cost += 30  # Increase cost by 30 each upgrade (30 -> 60 -> 90 ...)
+		end_game_bonus_upgrade_cost += 10  # Increase cost by 10 each upgrade (30 -> 40 -> 50 ...)
 		_update_upgrade_ui()
+		_play_chord_sound()  # Play upgrade sound effect
 		print("End game bonus upgraded! New bonus: +", end_game_bonus, ", Next upgrade cost: ", end_game_bonus_upgrade_cost)
 
 # Game over and score functions
@@ -997,16 +1070,20 @@ func _show_game_over():
 	var current_time = Time.get_ticks_msec() / 1000.0 - game_start_time
 	game_time = current_time  # Update the global game_time
 	var final_score = _calculate_final_score(current_time)
-	
+
+	# Check if this is a highscore
+	if HighscoreManager.is_highscore(final_score):
+		_show_name_input_dialog(final_score)
+
 	if game_over_panel:
 		game_over_panel.visible = true
-		
+
 		if game_over_title:
 			game_over_title.text = "GAME OVER!"
-		
+
 		if final_score_label:
 			final_score_label.text = "Final Score: " + str(final_score)
-		
+
 		if stats_label:
 			var minutes = int(game_time) / 60.0
 			var seconds = int(game_time) % 60
@@ -1019,6 +1096,75 @@ func _show_game_over():
 		print("Tiles Revealed: ", tiles_revealed)
 		print("Chords Performed: ", chords_performed)
 		print("Coins Earned: ", "%.1f" % coins)
+
+func _show_name_input_dialog(final_score: int):
+	"""Show dialog to input player name for highscore"""
+	var dialog = AcceptDialog.new()
+	dialog.title = "NEW HIGHSCORE!"
+	dialog.dialog_text = "Congratulations! You achieved a highscore!\nScore: " + str(final_score) + "\n\nEnter your name:"
+
+	# Create a LineEdit for name input
+	var line_edit = LineEdit.new()
+	line_edit.placeholder_text = "Enter your name"
+	line_edit.text = "Player"
+	line_edit.custom_minimum_size = Vector2(200, 30)
+
+	# Add the LineEdit to the dialog
+	dialog.add_child(line_edit)
+
+	# Add dialog to scene
+	add_child(dialog)
+	dialog.popup_centered()
+
+	# Focus the text input
+	line_edit.grab_focus()
+	line_edit.select_all()
+
+	# Connect signals
+	dialog.confirmed.connect(_on_name_input_confirmed.bind(line_edit, final_score))
+	dialog.tree_exited.connect(dialog.queue_free)
+
+	# Also allow Enter key to confirm
+	line_edit.text_submitted.connect(_on_name_input_submitted.bind(line_edit, final_score, dialog))
+
+func _on_name_input_confirmed(line_edit: LineEdit, final_score: int):
+	"""Handle name input confirmation"""
+	var player_name = line_edit.text.strip_edges()
+	if player_name.is_empty():
+		player_name = "Anonymous"
+
+	# Save the highscore
+	var rank = HighscoreManager.add_highscore(player_name, final_score, game_time, tiles_revealed, chords_performed)
+
+	if rank > 0:
+		print("Highscore saved! Rank: ", rank)
+		# Show rank achievement message
+		_show_rank_message(rank)
+	else:
+		print("Score saved but not in top 10")
+
+func _on_name_input_submitted(line_edit: LineEdit, final_score: int, dialog: AcceptDialog):
+	"""Handle Enter key press in name input"""
+	_on_name_input_confirmed(line_edit, final_score)
+	dialog.hide()
+
+func _show_rank_message(rank: int):
+	"""Show a message about the achieved rank"""
+	var rank_text = ""
+	match rank:
+		1: rank_text = "1ST PLACE!"
+		2: rank_text = "2ND PLACE!"
+		3: rank_text = "3RD PLACE!"
+		_: rank_text = str(rank) + "TH PLACE!"
+
+	var rank_dialog = AcceptDialog.new()
+	rank_dialog.title = "RANK ACHIEVED"
+	rank_dialog.dialog_text = "You achieved " + rank_text + "\n\nCheck the highscore menu to see your ranking!"
+	add_child(rank_dialog)
+	rank_dialog.popup_centered()
+
+	# Auto-cleanup
+	rank_dialog.tree_exited.connect(rank_dialog.queue_free)
 
 func _calculate_final_score(time_taken: float) -> int:
 	# Score calculation:

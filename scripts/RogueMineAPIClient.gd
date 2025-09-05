@@ -110,18 +110,12 @@ func _on_request_completed(result: int, response_code: int, _headers: PackedStri
 
 ## Submit a highscore
 func submit_highscore(player_name: String, score: int, time_taken: float, tiles_revealed: int, chords_performed: int) -> void:
-	print("API CLIENT DEBUG: Starting highscore submission")
-	print("API CLIENT DEBUG: Encoder secret:", encoder.secret)
-
 	# Encode the data
 	var encoding_result = encoder.encode_highscore(player_name, score, time_taken, tiles_revealed, chords_performed)
 
 	if not encoding_result.success:
-		print("API CLIENT DEBUG: Encoding failed:", encoding_result.error)
 		emit_signal("connection_error", "Failed to encode data: " + encoding_result.error)
 		return
-
-	print("API CLIENT DEBUG: Encoding successful, data length:", encoding_result.encodedData.length())
 
 	# Submit to server
 	var request_data = {

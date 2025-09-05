@@ -112,9 +112,6 @@ func submit_score_online(player_name: String, score: int, time_taken: float, til
 		print("API client not initialized")
 		return
 
-	print("MANAGER DEBUG: Starting score submission")
-	print("MANAGER DEBUG: Data - Name:", player_name, "Score:", score, "Time:", time_taken, "Tiles:", tiles_revealed, "Chords:", chords_performed)
-	print("MANAGER DEBUG: Using encoder secret:", ENCODING_SECRET)
 	print("Submitting score online: ", player_name, " - ", score)
 	api_client.submit_highscore(player_name, score, time_taken, tiles_revealed, chords_performed)
 

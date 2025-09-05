@@ -18,24 +18,17 @@ router.post('/', validateHighscoreSubmission, async (req, res) => {
     }
     
     // Decode the highscore data
-    console.log('Attempting to decode data from IP:', req.ip);
     const decodedResult = decodeHighscore(encodedData);
 
     if (!decodedResult.success) {
-      console.log('Decoding failed:', decodedResult.error);
       return res.status(400).json({ error: 'Invalid encoded data: ' + decodedResult.error });
     }
-
-    console.log('Successfully decoded score data:', decodedResult.data);
     
     const { playerName, score, timeTaken, tilesRevealed, chordsPerformed, timestamp } = decodedResult.data;
 
     // Comprehensive server-side validation
-    console.log('SERVER DEBUG: Starting validation for:', { playerName, score, timeTaken, tilesRevealed, chordsPerformed });
     const validation = validateHighscoreData(playerName, score, timeTaken, tilesRevealed, chordsPerformed);
-    console.log('SERVER DEBUG: Validation result:', validation);
     if (!validation.isValid) {
-      console.log('SERVER DEBUG: Validation failed with errors:', validation.errors);
       return res.status(400).json({
         error: 'Validation failed',
         details: validation.errors
@@ -58,7 +51,7 @@ router.post('/', validateHighscoreSubmission, async (req, res) => {
     }
     
     // Get client IP
-    const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+    const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
     
     // Save to database
     const saveResult = await HighscoreModel.saveHighscore(

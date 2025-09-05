@@ -26,12 +26,6 @@ function simpleHash(str) {
     const char = str.charCodeAt(i);
     hash = ((hash * 33) + char) % 2147483647; // Keep within positive 32-bit range
   }
-
-  // Debug logging for specific test cases
-  if (str === 'test') {
-    console.log('SERVER DEBUG: Hash of "test" =', hash, '(should be 2090756199 with DJB2)');
-  }
-
   return hash;
 }
 
@@ -70,16 +64,7 @@ function xorCipher(data, key) {
  */
 function calculateChecksum(playerName, score, timeTaken, tilesRevealed, chordsPerformed, timestamp) {
   const dataString = `${playerName}|${score}|${timeTaken}|${tilesRevealed}|${chordsPerformed}|${timestamp}`;
-  const fullString = dataString + ENCODING_SECRET;
-  const checksum = simpleHash(fullString);
-
-  console.log('SERVER DEBUG: Checksum calculation:');
-  console.log('  Data string:', dataString);
-  console.log('  Full string length:', fullString.length);
-  console.log('  Secret:', ENCODING_SECRET);
-  console.log('  Calculated checksum:', checksum);
-
-  return checksum;
+  return simpleHash(dataString + ENCODING_SECRET);
 }
 
 /**
@@ -202,8 +187,6 @@ function decodeHighscore(encodedData) {
         if (dataObj && typeof dataObj === 'object' &&
             dataObj.hasOwnProperty('n') && dataObj.hasOwnProperty('s') &&
             dataObj.hasOwnProperty('ts') && dataObj.hasOwnProperty('cs')) {
-          console.log('SERVER DEBUG: Found valid data object at offset:', offset);
-          console.log('SERVER DEBUG: Decoded object:', dataObj);
           decoded = dataObj;
           break;
         }
@@ -247,13 +230,7 @@ function decodeHighscore(encodedData) {
     );
     
     if (decoded.cs !== expectedChecksum) {
-      console.log('SERVER DEBUG: Checksum mismatch!');
-      console.log('  Expected:', expectedChecksum);
-      console.log('  Received:', decoded.cs);
-      console.log('  Difference:', expectedChecksum - decoded.cs);
       throw new Error('Data integrity check failed');
-    } else {
-      console.log('SERVER DEBUG: Checksum validation passed!');
     }
     
     // More lenient timestamp age verification

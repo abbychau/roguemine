@@ -27,7 +27,7 @@ app.use(limiter);
 // CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? 
   process.env.ALLOWED_ORIGINS.split(',') : 
-  ['http://localhost:8080', 'http://127.0.0.1:8080'];
+  ['http://localhost:8080', 'http://127.0.0.1:8080', 'https://html-classic.itch.zone', 'https://abbychau.itch.io/rogue-minesweeper', 'https://mine-api.12389012.xyz'];
 
 app.use(cors({
   origin: function (origin, callback) {

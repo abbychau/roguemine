@@ -900,7 +900,7 @@ func _update_info_display():
 				_revealed_count += 1
 	
 	if info_label:
-		info_label.text = "Mines: %d | Flags: %d | Pos: (%d,%d)" % [total_mines, flags_used, camera_x, camera_y]
+		info_label.text = "Mines: %d | Flags: %d" % [total_mines, flags_used]
 	else:
 		print("Warning: info_label not found in scene!")
 
@@ -1080,14 +1080,20 @@ func _show_game_over():
 
 		if game_over_title:
 			game_over_title.text = "GAME OVER!"
+			# Make the title larger
+			game_over_title.add_theme_font_size_override("font_size", 48)
 
 		if final_score_label:
 			final_score_label.text = "Final Score: " + str(final_score)
+			# Make the final score label larger
+			final_score_label.add_theme_font_size_override("font_size", 32)
 
 		if stats_label:
 			var minutes = int(game_time) / 60.0
 			var seconds = int(game_time) % 60
 			stats_label.text = "Time: %02d:%02d\nTiles Revealed: %d\nChords Performed: %d\nCoins Earned: %.1f" % [minutes, seconds, tiles_revealed, chords_performed, coins]
+			# Make the stats label larger
+			stats_label.add_theme_font_size_override("font_size", 24)
 	else:
 		# Fallback if no game over panel - print to console
 		print("=== GAME OVER ===")

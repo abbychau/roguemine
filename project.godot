@@ -14,6 +14,7 @@ config/name="RogueMine"
 run/main_scene="res://scenes/MainMenu.tscn"
 config/features=PackedStringArray("4.3", "Mobile")
 boot_splash/show_image=false
+boot_splash/image="res://assets/minesweeper.png"
 boot_splash/fullsize=false
 boot_splash/use_filter=false
 config/icon="res://icon.svg"
@@ -36,7 +37,7 @@ project/assembly_name="RogueMine"
 [gui]
 
 fonts/dynamic_fonts/use_oversampling=false
-theme/custom_font="res://assets/ARCADECLASSIC.TTF"
+theme/custom_font="res://assets/BoldPixels1.4.ttf"
 
 [input_devices]
 
@@ -53,3 +54,4 @@ pointing/emulate_touch_from_mouse=true
 
 textures/canvas_textures/default_texture_filter=2
 renderer/rendering_method="mobile"
+textures/vram_compression/import_etc2_astc=true

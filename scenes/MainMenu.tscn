@@ -68,24 +68,18 @@ theme = SubResource("Theme_MainMenu")
 script = ExtResource("1_2h3k4")
 
 [node name="Background" type="TextureRect" parent="."]
-modulate = Color(0.3, 0.3, 0.4, 0.8)
+modulate = Color(0.481789, 0.48179, 0.481789, 1)
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_right = 3993.0
+offset_bottom = 7107.0
 grow_horizontal = 2
 grow_vertical = 2
+scale = Vector2(0.12, 0.12)
 texture = ExtResource("2_background")
-stretch_mode = 1
-
-[node name="BackgroundOverlay" type="ColorRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0.05, 0.1, 0.15, 0.7)
+stretch_mode = 4
 
 [node name="MainContainer" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -160,7 +154,7 @@ offset_right = -20.0
 offset_bottom = -5.0
 grow_horizontal = 0
 grow_vertical = 0
-text = "v1.0.0"
+text = "ver001"
 label_settings = SubResource("LabelSettings_Version")
 horizontal_alignment = 2
 
@@ -174,7 +168,7 @@ offset_top = -35.0
 offset_right = 200.0
 offset_bottom = -5.0
 grow_vertical = 0
-text = "MADE WITH GODOT"
+text = "MADE BY ABBYCHAU"
 label_settings = SubResource("LabelSettings_Version")
 
 [node name="BGMPlayer" type="AudioStreamPlayer" parent="."]

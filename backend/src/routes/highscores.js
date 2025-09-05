@@ -29,6 +29,7 @@ router.post('/', validateHighscoreSubmission, async (req, res) => {
     // Comprehensive server-side validation
     const validation = validateHighscoreData(playerName, score, timeTaken, tilesRevealed, chordsPerformed);
     if (!validation.isValid) {
+      console.error('Validation failed:', validation.errors);
       return res.status(400).json({
         error: 'Validation failed',
         details: validation.errors

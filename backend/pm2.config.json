@@ -1,0 +1,12 @@
+{
+  "apps": [
+    {
+      "name": "roguemine-server",
+      "script": "server.js",
+      "cwd": ".",
+      "env": {
+        "PORT": 56789
+      }
+    }
+  ]
+}

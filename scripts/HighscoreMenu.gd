@@ -12,16 +12,21 @@ extends Control
 
 func _ready():
 	print("HighscoreMenu loaded")
-	
+
 	# Set up button connections
 	if back_button:
 		back_button.pressed.connect(_on_back_button_pressed)
-	
+
+	# Connect to HighscoreManager signals
+	HighscoreManager.highscores_received.connect(_on_highscores_received)
+	HighscoreManager.connection_status_changed.connect(_on_connection_status_changed)
+
 	# Start entrance animations
 	_animate_entrance()
-	
-	# Load and display highscores
-	_populate_highscore_list()
+
+	# Fetch highscores from server
+	_show_loading_message()
+	HighscoreManager.fetch_highscores()
 
 func _animate_entrance():
 	# Fade in animation similar to MainMenu
@@ -35,7 +40,7 @@ func _populate_highscore_list():
 	for child in highscore_list.get_children():
 		child.queue_free()
 	
-	var highscores = HighscoreManager.get_highscores()
+	var highscores = HighscoreManager.get_highscores()  # Get cached data
 	
 	if highscores.is_empty():
 		# Show "no scores" message
@@ -111,7 +116,7 @@ func _create_highscore_entry(rank: int, entry):
 	
 	# Time
 	var time_label = Label.new()
-	var minutes = int(entry.time_taken) / 60
+	var minutes = int(entry.time_taken) / 60.0
 	var seconds = int(entry.time_taken) % 60
 	time_label.text = "Time: %02d:%02d" % [minutes, seconds]
 	time_label.add_theme_font_size_override("font_size", 14)
@@ -162,3 +167,74 @@ func _format_date(date_string: String) -> String:
 func _on_back_button_pressed():
 	print("Back to main menu")
 	get_tree().change_scene_to_file("res://scenes/MainMenu.tscn")
+
+func _show_loading_message():
+	"""Show loading message while fetching scores"""
+	# Clear existing entries
+	for child in highscore_list.get_children():
+		child.queue_free()
+
+	var loading_label = Label.new()
+	loading_label.text = "Loading highscores..."
+	loading_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	loading_label.add_theme_font_size_override("font_size", 18)
+	highscore_list.add_child(loading_label)
+
+	if no_scores_label:
+		no_scores_label.visible = false
+
+func _on_highscores_received(success: bool, scores: Array):
+	"""Handle highscores received from server"""
+	if success:
+		_populate_highscore_list_with_data(scores)
+	else:
+		_show_error_message()
+
+func _on_connection_status_changed(connected: bool):
+	"""Handle connection status changes"""
+	if not connected:
+		_show_connection_error()
+
+func _populate_highscore_list_with_data(highscores: Array):
+	"""Populate the list with received highscore data"""
+	# Clear existing entries
+	for child in highscore_list.get_children():
+		child.queue_free()
+
+	if highscores.is_empty():
+		# Show "no scores" message
+		if no_scores_label:
+			no_scores_label.visible = true
+		if scroll_container:
+			scroll_container.visible = false
+		return
+
+	# Hide "no scores" message and show scroll container
+	if no_scores_label:
+		no_scores_label.visible = false
+	if scroll_container:
+		scroll_container.visible = true
+
+	# Create highscore entries using the same logic as before
+	for i in range(highscores.size()):
+		var entry = highscores[i]
+		var entry_container = _create_highscore_entry(i + 1, entry)
+		highscore_list.add_child(entry_container)
+
+# Removed duplicate function - using existing _create_highscore_entry
+
+func _show_error_message():
+	"""Show error message when highscore fetch fails"""
+	# Clear existing entries
+	for child in highscore_list.get_children():
+		child.queue_free()
+
+	var error_label = Label.new()
+	error_label.text = "Failed to load highscores.\nPlease check your internet connection."
+	error_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	error_label.add_theme_font_size_override("font_size", 16)
+	highscore_list.add_child(error_label)
+
+func _show_connection_error():
+	"""Show connection error message"""
+	print("Connection to highscore server lost")

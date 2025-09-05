@@ -18,11 +18,15 @@ router.post('/', validateHighscoreSubmission, async (req, res) => {
     }
     
     // Decode the highscore data
+    console.log('Attempting to decode data from IP:', req.ip);
     const decodedResult = decodeHighscore(encodedData);
-    
+
     if (!decodedResult.success) {
+      console.log('Decoding failed:', decodedResult.error);
       return res.status(400).json({ error: 'Invalid encoded data: ' + decodedResult.error });
     }
+
+    console.log('Successfully decoded score data:', decodedResult.data);
     
     const { playerName, score, timeTaken, tilesRevealed, chordsPerformed, timestamp } = decodedResult.data;
 

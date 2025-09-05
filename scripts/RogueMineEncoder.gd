@@ -5,32 +5,37 @@ class_name RogueMineEncoder
 ## Compatible with Godot 4.x and mirrors the server-side encoding algorithm
 
 var secret: String = "default-secret-key"
-var max_timestamp_age: int = 5 * 60 * 1000  # 5 minutes in milliseconds
+var max_timestamp_age: int = 30 * 60 * 1000  # 30 minutes in milliseconds (increased for debugging)
 
 func _init(encoding_secret: String = "default-secret-key"):
 	secret = encoding_secret
 
 ## Generate a simple hash from a string (compatible with JavaScript)
 func simple_hash(str: String) -> int:
-	var hash: int = 0
+	# Use a simpler hash algorithm that's easier to match between languages
+	var hash_value: int = 5381  # DJB2 hash algorithm starting value
 	for i in range(str.length()):
 		var char_code = str.unicode_at(i)
-		hash = ((hash << 5) - hash) + char_code
-		hash = hash & hash  # Convert to 32-bit integer
-	return abs(hash)
+		hash_value = ((hash_value * 33) + char_code) % 2147483647  # Keep within positive 32-bit range
+
+	# Debug output to verify the new hash function is being used
+	if str == "test":
+		print("DEBUG: Hash of 'test' = ", hash_value, " (should be 2090756199 with new DJB2)")
+
+	return hash_value
 
 ## Generate XOR key based on secret and timestamp
 func generate_xor_key(timestamp: int, secret_key: String) -> Array:
 	var combined = secret_key + str(timestamp)
-	var hash = simple_hash(combined)
-	
+	var hash_value = simple_hash(combined)
+
 	# Generate a repeating key pattern
 	var key_length = 16
 	var key = []
-	
+
 	for i in range(key_length):
-		key.append((hash + i * 7) % 256)
-	
+		key.append((hash_value + i * 7) % 256)
+
 	return key
 
 ## XOR encrypt/decrypt data with rotating key
@@ -43,14 +48,25 @@ func xor_cipher(data: Array, key: Array) -> Array:
 
 ## Calculate checksum for data integrity
 func calculate_checksum(player_name: String, score: int, time_taken: float, tiles_revealed: int, chords_performed: int, timestamp: int) -> int:
-	var data_string = "%s|%d|%f|%d|%d|%d" % [player_name, score, time_taken, tiles_revealed, chords_performed, timestamp]
-	return simple_hash(data_string + secret)
+	# Format time_taken to match JavaScript's string conversion (no trailing zeros)
+	var time_str = str(time_taken)
+	var data_string = "%s|%d|%s|%d|%d|%d" % [player_name, score, time_str, tiles_revealed, chords_performed, timestamp]
+	var full_string = data_string + secret
+	var checksum = simple_hash(full_string)
+
+	# Debug output
+	print("DEBUG: Checksum calculation:")
+	print("  Data string: ", data_string)
+	print("  Full string length: ", full_string.length())
+	print("  Calculated checksum: ", checksum)
+
+	return checksum
 
 ## Convert string to byte array
-func string_to_bytes(str: String) -> Array:
+func string_to_bytes(input_str: String) -> Array:
 	var bytes = []
-	for i in range(str.length()):
-		bytes.append(str.unicode_at(i))
+	for i in range(input_str.length()):
+		bytes.append(input_str.unicode_at(i))
 	return bytes
 
 ## Convert byte array to string
@@ -77,19 +93,26 @@ func base64_decode(base64_string: String) -> Array:
 
 ## Encode highscore data
 func encode_highscore(player_name: String, score: int, time_taken: float, tiles_revealed: int, chords_performed: int) -> Dictionary:
+	print("CLIENT DEBUG: Starting encode_highscore")
+	print("CLIENT DEBUG: Input data - Name:", player_name, "Score:", score, "Time:", time_taken, "Tiles:", tiles_revealed, "Chords:", chords_performed)
+
+	# Test the hash function to verify it's working
+	var test_hash = simple_hash("test")
+	print("CLIENT DEBUG: Hash of 'test' = ", test_hash, " (should be 2090756199 with DJB2)")
+
 	# Validate input data
 	if player_name.is_empty() or not player_name is String:
 		return {"success": false, "error": "Invalid player name"}
-	
+
 	if score < 0:
 		return {"success": false, "error": "Invalid score"}
-	
+
 	if time_taken < 0:
 		return {"success": false, "error": "Invalid time taken"}
-	
+
 	if tiles_revealed < 0:
 		return {"success": false, "error": "Invalid tiles revealed"}
-	
+
 	if chords_performed < 0:
 		return {"success": false, "error": "Invalid chords performed"}
 	
@@ -100,11 +123,13 @@ func encode_highscore(player_name: String, score: int, time_taken: float, tiles_
 	tiles_revealed = int(tiles_revealed)
 	chords_performed = int(chords_performed)
 	
-	# Generate timestamp
-	var timestamp = Time.get_ticks_msec()
-	
+	# Generate timestamp (Unix timestamp in milliseconds)
+	var timestamp = Time.get_unix_time_from_system() * 1000
+	print("CLIENT DEBUG: Generated timestamp:", timestamp)
+
 	# Calculate checksum
 	var checksum = calculate_checksum(player_name, score, time_taken, tiles_revealed, chords_performed, timestamp)
+	print("CLIENT DEBUG: Final checksum:", checksum)
 	
 	# Create data object
 	var data_obj = {
@@ -131,7 +156,11 @@ func encode_highscore(player_name: String, score: int, time_taken: float, tiles_
 	
 	# Convert to base64
 	var base64_data = base64_encode(encrypted_bytes)
-	
+
+	print("CLIENT DEBUG: Encoding successful!")
+	print("CLIENT DEBUG: Base64 data length:", base64_data.length())
+	print("CLIENT DEBUG: First 50 chars:", base64_data.substr(0, 50))
+
 	return {
 		"success": true,
 		"encodedData": base64_data,
@@ -144,7 +173,7 @@ func decode_highscore(encoded_data: String) -> Dictionary:
 	var encrypted_bytes = base64_decode(encoded_data)
 	
 	# We need to try different timestamps since we don't know the exact one
-	var current_time = Time.get_ticks_msec()
+	var current_time = Time.get_unix_time_from_system() * 1000
 	var decoded = null
 	
 	# Try timestamps within the last 5 minutes
@@ -179,7 +208,7 @@ func decode_highscore(encoded_data: String) -> Dictionary:
 		return {"success": false, "error": "Data integrity check failed"}
 	
 	# Verify timestamp age
-	var age = Time.get_ticks_msec() - decoded.get("ts", 0)
+	var age = abs(Time.get_unix_time_from_system() * 1000 - decoded.get("ts", 0))
 	if age > max_timestamp_age:
 		return {"success": false, "error": "Data too old"}
 	

@@ -1071,9 +1071,8 @@ func _show_game_over():
 	game_time = current_time  # Update the global game_time
 	var final_score = _calculate_final_score(current_time)
 
-	# Check if this is a highscore
-	if HighscoreManager.is_highscore(final_score):
-		_show_name_input_dialog(final_score)
+	# Always show name input dialog for score submission
+	_show_name_input_dialog(final_score)
 
 	if game_over_panel:
 		game_over_panel.visible = true
@@ -1139,20 +1138,50 @@ func _on_name_input_confirmed(line_edit: LineEdit, final_score: int):
 	if player_name.is_empty():
 		player_name = "Anonymous"
 
-	# Save the highscore
-	var rank = HighscoreManager.add_highscore(player_name, final_score, game_time, tiles_revealed, chords_performed)
+	# Connect to score submission signal if not already connected
+	if not HighscoreManager.score_submitted.is_connected(_on_score_submitted):
+		HighscoreManager.score_submitted.connect(_on_score_submitted)
 
-	if rank > 0:
-		print("Highscore saved! Rank: ", rank)
-		# Show rank achievement message
-		_show_rank_message(rank)
-	else:
-		print("Score saved but not in top 10")
+	# Submit the highscore (async)
+	HighscoreManager.add_highscore(player_name, final_score, game_time, tiles_revealed, chords_performed)
+	print("Submitting score to server...")
 
 func _on_name_input_submitted(line_edit: LineEdit, final_score: int, dialog: AcceptDialog):
 	"""Handle Enter key press in name input"""
 	_on_name_input_confirmed(line_edit, final_score)
 	dialog.hide()
+
+func _on_score_submitted(success: bool, data: Dictionary):
+	"""Handle score submission response"""
+	if success:
+		var rank = data.get("rank", 0)
+		print("Score submitted successfully! Rank: ", rank)
+		if rank > 0 and rank <= 10:
+			_show_rank_message(rank)
+		else:
+			_show_submission_success_message()
+	else:
+		var error = data.get("error", "Unknown error")
+		print("Score submission failed: ", error)
+		_show_submission_error_message(error)
+
+func _show_submission_success_message():
+	"""Show success message for score submission"""
+	var success_dialog = AcceptDialog.new()
+	success_dialog.title = "Score Submitted!"
+	success_dialog.dialog_text = "Your score has been submitted successfully!"
+	add_child(success_dialog)
+	success_dialog.popup_centered()
+	success_dialog.tree_exited.connect(success_dialog.queue_free)
+
+func _show_submission_error_message(error: String):
+	"""Show error message for failed score submission"""
+	var error_dialog = AcceptDialog.new()
+	error_dialog.title = "Submission Failed"
+	error_dialog.dialog_text = "Failed to submit score: " + error + "\n\nPlease check your internet connection and try again."
+	add_child(error_dialog)
+	error_dialog.popup_centered()
+	error_dialog.tree_exited.connect(error_dialog.queue_free)
 
 func _show_rank_message(rank: int):
 	"""Show a message about the achieved rank"""
@@ -1368,8 +1397,8 @@ func _navigate_to_minimap_position(minimap_pos: Vector2):
 	var field_y = int(minimap_pos.y / minimap_cell_size)
 	
 	# Center the viewport on the clicked position
-	camera_x = int(field_x - VIEWPORT_SIZE / 2)
-	camera_y = int(field_y - VIEWPORT_SIZE / 2)
+	camera_x = int(field_x - VIEWPORT_SIZE / 2.0)
+	camera_y = int(field_y - VIEWPORT_SIZE / 2.0)
 	
 	# Clamp to valid bounds
 	camera_x = int(clamp(camera_x, 0, FIELD_SIZE - VIEWPORT_SIZE))

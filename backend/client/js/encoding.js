@@ -8,20 +8,20 @@
 class RogueMineEncoder {
   constructor(secret = 'default-secret-key') {
     this.secret = secret;
-    this.maxTimestampAge = 5 * 60 * 1000; // 5 minutes
+    this.maxTimestampAge = 30 * 60 * 1000; // 30 minutes (increased for debugging)
   }
   
   /**
    * Generate a simple hash from a string (compatible with GDScript)
+   * Using DJB2 hash algorithm for better cross-language compatibility
    */
   simpleHash(str) {
-    let hash = 0;
+    let hash = 5381; // DJB2 hash algorithm starting value
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
+      hash = ((hash * 33) + char) % 2147483647; // Keep within positive 32-bit range
     }
-    return Math.abs(hash);
+    return hash;
   }
   
   /**

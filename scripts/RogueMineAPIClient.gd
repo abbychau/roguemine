@@ -10,6 +10,8 @@ signal connection_error(error_message: String)
 var base_url: String = "http://localhost:3000"
 var encoder: RogueMineEncoder
 var http_request: HTTPRequest
+var is_requesting: bool = false
+var request_queue: Array = []
 
 func _init(server_url: String = "http://localhost:3000", secret: String = "default-secret-key"):
 	base_url = server_url.rstrip("/")  # Remove trailing slash
@@ -26,30 +28,54 @@ func make_request(endpoint: String, method: HTTPClient.Method = HTTPClient.METHO
 	if not http_request:
 		emit_signal("connection_error", "HTTP request not set up. Call setup_http_request() first.")
 		return
-	
+
+	# If already requesting, queue this request
+	if is_requesting:
+		print("Request in progress, queueing new request")
+		request_queue.append({"endpoint": endpoint, "method": method, "data": data})
+		return
+
+	_execute_request(endpoint, method, data)
+
+## Execute a single HTTP request
+func _execute_request(endpoint: String, method: HTTPClient.Method, data: Dictionary) -> void:
+	is_requesting = true
+
 	var url = base_url + endpoint
 	var headers = ["Content-Type: application/json"]
 	var body = ""
-	
+
 	if method == HTTPClient.METHOD_POST and not data.is_empty():
 		body = JSON.stringify(data)
-	
+
 	print("Making request to: ", url)
 	print("Method: ", method)
 	print("Body: ", body)
-	
+
 	var error = http_request.request(url, headers, method, body)
 	if error != OK:
+		is_requesting = false
 		emit_signal("connection_error", "Failed to make request: " + str(error))
+		_process_next_request()
+
+## Process the next request in queue
+func _process_next_request() -> void:
+	if request_queue.size() > 0:
+		var next_request = request_queue.pop_front()
+		_execute_request(next_request.endpoint, next_request.method, next_request.data)
 
 ## Handle HTTP response
-func _on_request_completed(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
+func _on_request_completed(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
 	print("Request completed - Result: ", result, " Response code: ", response_code)
-	
+
+	# Mark request as completed
+	is_requesting = false
+
 	if result != HTTPRequest.RESULT_SUCCESS:
 		emit_signal("connection_error", "Request failed with result: " + str(result))
+		_process_next_request()
 		return
-	
+
 	if response_code < 200 or response_code >= 300:
 		var error_message = "HTTP " + str(response_code)
 		if body.size() > 0:
@@ -58,39 +84,50 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 			var parse_result = json.parse(body_text)
 			if parse_result == OK and json.data.has("error"):
 				error_message = json.data.error
-		
+
 		emit_signal("request_completed", false, {"error": error_message})
+		_process_next_request()
 		return
-	
+
 	# Parse response body
 	var response_data = {}
 	if body.size() > 0:
 		var body_text = body.get_string_from_utf8()
 		var json = JSON.new()
 		var parse_result = json.parse(body_text)
-		
+
 		if parse_result == OK:
 			response_data = json.data
 		else:
 			emit_signal("connection_error", "Failed to parse response JSON")
+			_process_next_request()
 			return
-	
+
 	emit_signal("request_completed", true, response_data)
+
+	# Process next request in queue
+	_process_next_request()
 
 ## Submit a highscore
 func submit_highscore(player_name: String, score: int, time_taken: float, tiles_revealed: int, chords_performed: int) -> void:
+	print("API CLIENT DEBUG: Starting highscore submission")
+	print("API CLIENT DEBUG: Encoder secret:", encoder.secret)
+
 	# Encode the data
 	var encoding_result = encoder.encode_highscore(player_name, score, time_taken, tiles_revealed, chords_performed)
-	
+
 	if not encoding_result.success:
+		print("API CLIENT DEBUG: Encoding failed:", encoding_result.error)
 		emit_signal("connection_error", "Failed to encode data: " + encoding_result.error)
 		return
-	
+
+	print("API CLIENT DEBUG: Encoding successful, data length:", encoding_result.encodedData.length())
+
 	# Submit to server
 	var request_data = {
 		"encodedData": encoding_result.encodedData
 	}
-	
+
 	make_request("/api/highscores", HTTPClient.METHOD_POST, request_data)
 
 ## Get top highscores
@@ -115,3 +152,5 @@ func cleanup() -> void:
 	if http_request:
 		http_request.queue_free()
 		http_request = null
+	is_requesting = false
+	request_queue.clear()

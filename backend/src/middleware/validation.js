@@ -50,7 +50,7 @@ function validateHighscoreData(playerName, score, timeTaken, tilesRevealed, chor
   
   // Cross-validation: Score vs performance metrics
   const minExpectedScore = tilesRevealed * 5; // Minimum 5 points per tile
-  const maxExpectedScore = tilesRevealed * 100 + chordsPerformed * 1000; // Generous upper bound
+  const maxExpectedScore = tilesRevealed * 100 + chordsPerformed * 1000 + 2000; // Generous upper bound
   
   if (score < minExpectedScore) {
     errors.push('Score is too low for the number of tiles revealed');

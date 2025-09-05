@@ -13,6 +13,11 @@ extends Control
 func _ready():
 	print("HighscoreMenu loaded")
 
+	# Route BGM to the global BGM bus so OptionsModal controls it
+	if bgm_player:
+		bgm_player.bus = AudioManager.BGM_BUS
+		bgm_player.add_to_group(AudioManager.BGM_BUS)
+
 	# Set up button connections
 	if back_button:
 		back_button.pressed.connect(_on_back_button_pressed)
@@ -218,8 +223,7 @@ func _populate_highscore_list_with_data(highscores: Array):
 	# Create highscore entries using the same logic as before
 	for i in range(highscores.size()):
 		var entry = highscores[i]
-		var entry_container = _create_highscore_entry(i + 1, entry)
-		highscore_list.add_child(entry_container)
+		_create_highscore_entry(i + 1, entry)
 
 # Removed duplicate function - using existing _create_highscore_entry
 

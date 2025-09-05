@@ -6,13 +6,22 @@ extends Control
 @onready var title_container = $MainContainer/TitleContainer
 @onready var button_container = $MainContainer/ButtonContainer
 @onready var play_button = $MainContainer/ButtonContainer/PlayButton
+@onready var highscore_button = $MainContainer/ButtonContainer/HighscoreButton
 @onready var options_button = $MainContainer/ButtonContainer/OptionsButton
 @onready var quit_button = $MainContainer/ButtonContainer/QuitButton
 @onready var bgm_player = $BGMPlayer
 
+# Options modal
+var current_options_modal: OptionsModal
+
 func _ready():
 	# Ensure the main menu is properly configured for mobile
 	print("Main Menu loaded - Mobile configuration active")
+
+	# Route BGM to the global BGM bus so OptionsModal controls it
+	if bgm_player:
+		bgm_player.bus = AudioManager.BGM_BUS
+		bgm_player.add_to_group(AudioManager.BGM_BUS)
 
 	# Start entrance animations
 	_animate_entrance()
@@ -27,12 +36,19 @@ func _on_play_button_pressed():
 	# Change to minesweeper game scene
 	get_tree().change_scene_to_file("res://scenes/Minesweeper.tscn")
 
-func _on_options_button_pressed():
+func _on_highscore_button_pressed():
 	print("Highscore button pressed")
-	_animate_button_press(options_button)
-	await get_tree().create_timer(0.1).timeout
+	if highscore_button:
+		_animate_button_press(highscore_button)
+		await get_tree().create_timer(0.1).timeout
 	# Change to highscore scene
 	get_tree().change_scene_to_file("res://scenes/HighscoreMenu.tscn")
+
+func _on_options_button_pressed():
+	print("Options button pressed")
+	_animate_button_press(options_button)
+	await get_tree().create_timer(0.1).timeout
+	_show_options_modal()
 
 func _on_quit_button_pressed():
 	print("Quit button pressed")
@@ -91,6 +107,25 @@ func _on_button_unhover(button: Button):
 	var tween = create_tween()
 	tween.tween_property(button, "scale", Vector2(1.0, 1.0), 0.1)
 	tween.set_ease(Tween.EASE_OUT)
+
+func _show_options_modal():
+	"""Show the options modal"""
+	if current_options_modal:
+		return  # Already showing
+
+	# Instance shared OptionsModal scene
+	var modal_scene: PackedScene = load("res://scenes/OptionsModal.tscn")
+	current_options_modal = modal_scene.instantiate()
+	add_child(current_options_modal)
+
+	# Connect close signal
+	current_options_modal.options_closed.connect(_on_options_modal_closed)
+
+func _on_options_modal_closed():
+	"""Handle options modal being closed"""
+	current_options_modal = null
+
+
 
 func _show_message(message: String):
 	# Simple feedback for placeholder functions

@@ -9,8 +9,6 @@ const highscoreRoutes = require('./src/routes/highscores');
 const { errorHandler } = require('./src/middleware/errorHandler');
 
 const app = express();
-// Enable trust proxy for a single proxy (safer for rate limiting)
-app.set('trust proxy', 1);
 const PORT = process.env.PORT || 56789;
 
 // Security middleware

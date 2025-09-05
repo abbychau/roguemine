@@ -67,7 +67,7 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = 120.0
 offset_bottom = 56.0
-text = "MENU"
+text = "Quit"
 
 [node name="MinimapPanel" type="Panel" parent="UI"]
 offset_left = 376.0
@@ -94,14 +94,25 @@ offset_bottom = 120.0
 text = "Tap-to-Flag"
 horizontal_alignment = 1
 
+[node name="OptionsButton" type="Button" parent="UI"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -412.0
+offset_top = 20.0
+offset_right = -312.0
+offset_bottom = 56.0
+grow_horizontal = 0
+text = "Settings"
+
 [node name="EndGameButton" type="Button" parent="UI"]
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -520.0
-offset_top = 126.0
-offset_right = -420.0
-offset_bottom = 174.0
+offset_left = -412.0
+offset_top = 64.0
+offset_right = -312.0
+offset_bottom = 118.0
 grow_horizontal = 0
 text = "END GAME
 GET SCORE"
@@ -324,6 +335,7 @@ volume_db = -5.0
 
 [connection signal="pressed" from="UI/BackButton" to="." method="_on_back_button_pressed"]
 [connection signal="pressed" from="UI/FlagModeButton" to="." method="_on_flag_mode_button_pressed"]
+[connection signal="pressed" from="UI/OptionsButton" to="." method="_on_options_button_pressed"]
 [connection signal="pressed" from="UI/UpgradePanel/FloodUpgradeButton" to="." method="_on_flood_upgrade_button_pressed"]
 [connection signal="pressed" from="UI/UpgradePanel/CoinMultiplierUpgradeButton" to="." method="_on_coin_multiplier_upgrade_button_pressed"]
 [connection signal="pressed" from="UI/UpgradePanel/ChordBonusUpgradeButton" to="." method="_on_chord_bonus_upgrade_button_pressed"]

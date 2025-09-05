@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://dy1wjwxdb6ke"]
+
+[ext_resource type="Script" path="res://scripts/OptionsModal.gd" id="1"]
+
+[node name="OptionsModal" type="ColorRect"]
+script = ExtResource("1")

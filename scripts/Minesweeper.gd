@@ -117,6 +117,10 @@ var menu_button
 # Time and end game UI references
 var time_label
 var end_game_button
+var options_button
+
+# Options modal
+var current_options_modal: OptionsModal
 
 # Minimap UI references
 var minimap_panel
@@ -126,6 +130,19 @@ var minimap_viewport_rect
 var minimap_image
 var minimap_texture
 var minimap_is_dragging = false
+var minimap_zoom_overlay
+var minimap_click_pos := Vector2.ZERO
+var minimap_pointer_down := false
+var minimap_drag_started := false
+var minimap_drag_threshold := 6.0
+
+# Big minimap overlay
+var big_minimap_overlay: Control
+var big_minimap_panel: Panel
+var big_minimap_texture_rect: TextureRect
+var big_minimap_viewport_rect: ColorRect
+var big_minimap_close_button: Button
+var big_minimap_size: int = 0
 
 # Audio references
 var tile_open_sfx
@@ -134,7 +151,7 @@ var chord_sfx
 # Get sprite region for a given sprite index (0-11)
 func _get_sprite_region(sprite_index: int) -> Rect2:
 	var col = sprite_index % SPRITES_PER_ROW
-	var row = int(sprite_index / SPRITES_PER_ROW)
+	var row = floori(float(sprite_index) / float(SPRITES_PER_ROW))
 	return Rect2(col * SPRITE_SIZE, row * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE)
 
 # Get sprite index based on cell state
@@ -168,14 +185,23 @@ func _ready():
 	# Load the minesweeper sprite sheet
 	minesweeper_texture = load("res://assets/minesweeper.png")
 
-	# Get BGM player reference
+	# Get BGM player reference and route to BGM bus
 	var bgm_player = get_node_or_null("BGMPlayer")
-	if bgm_player and not bgm_player.playing:
-		bgm_player.play()
+	if bgm_player:
+		bgm_player.bus = AudioManager.BGM_BUS
+		bgm_player.add_to_group(AudioManager.BGM_BUS)
+		if not bgm_player.playing:
+			bgm_player.play()
 
-	# Get sound effect references
+	# Get sound effect references and route to SFX bus
 	tile_open_sfx = get_node_or_null("TileOpenSFX")
+	if tile_open_sfx:
+		tile_open_sfx.bus = AudioManager.SE_BUS
+		tile_open_sfx.add_to_group(AudioManager.SE_BUS)
 	chord_sfx = get_node_or_null("ChordSFX")
+	if chord_sfx:
+		chord_sfx.bus = AudioManager.SE_BUS
+		chord_sfx.add_to_group(AudioManager.SE_BUS)
 
 	# Debug: Check if sound effects are properly loaded
 	print("Sound effect nodes loaded:")
@@ -189,9 +215,11 @@ func _ready():
 	# Initialize UI elements - no longer using TopPanel
 	info_label = get_node_or_null("UI/InfoLabel")  # Now at bottom
 	flag_mode_button = get_node_or_null("UI/FlagModeButton")  # Direct reference
-	var back_button = get_node_or_null("UI/BackButton")  # Direct reference
-	time_label = get_node_or_null("UI/TimeLabel")  # Time display
+	time_label = get_node_or_null("UI//UpgradePanel/TimeLabel")  # Time display
+	if not time_label:
+		print("Warning: TimeLabel not found at UI/TimeLabel")
 	end_game_button = get_node_or_null("UI/EndGameButton")  # End game button
+	options_button = get_node_or_null("UI/OptionsButton")  # Options button
 	
 	# Connect button signals if they exist
 	if end_game_button:
@@ -249,8 +277,8 @@ func _ready():
 	_create_minimap()
 	
 	# Center the camera in the middle of the field
-	camera_x = int((FIELD_SIZE - VIEWPORT_SIZE) / 2)
-	camera_y = int((FIELD_SIZE - VIEWPORT_SIZE) / 2)
+	camera_x = int((FIELD_SIZE - VIEWPORT_SIZE) / 2.0)
+	camera_y = int((FIELD_SIZE - VIEWPORT_SIZE) / 2.0)
 	
 	_update_camera_position()
 	_update_info_display()
@@ -299,7 +327,7 @@ func _initialize_minefield():
 		var y = randi() % FIELD_SIZE
 		
 		if minefield[x][y] == 0:  # Don't place mine on existing mine
-			minefield[x][y] = 1
+			minefield[x][y] = 1  # Place a mine
 			mines_placed += 1
 	
 	print("Minefield initialized: ", FIELD_SIZE, "x", FIELD_SIZE, " with ", MINE_COUNT, " mines")
@@ -1307,6 +1335,8 @@ func _create_minimap():
 	minimap_texture_rect = TextureRect.new()
 	minimap_texture_rect.size = Vector2(minimap_size, minimap_size)
 	minimap_texture_rect.stretch_mode = TextureRect.STRETCH_KEEP
+	# Ensure crisp rendering and avoid filtering artifacts
+	minimap_texture_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	minimap_container.add_child(minimap_texture_rect)
 	
 	# Create viewport rectangle indicator
@@ -1319,6 +1349,15 @@ func _create_minimap():
 	)
 	minimap_viewport_rect.size = viewport_size_on_minimap
 	minimap_container.add_child(minimap_viewport_rect)
+
+	# Overlay for quick zoom effect on click
+	minimap_zoom_overlay = TextureRect.new()
+	minimap_zoom_overlay.position = Vector2.ZERO
+	minimap_zoom_overlay.size = Vector2(minimap_size, minimap_size)
+	minimap_zoom_overlay.stretch_mode = TextureRect.STRETCH_KEEP
+	minimap_zoom_overlay.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	minimap_zoom_overlay.visible = false
+	minimap_container.add_child(minimap_zoom_overlay)
 	
 	# Connect input events for minimap navigation
 	minimap_container.gui_input.connect(_on_minimap_input)
@@ -1326,43 +1365,150 @@ func _create_minimap():
 	# Create initial minimap image
 	_generate_minimap_image()
 
+# Create a minimap texture at an arbitrary resolution (used by big minimap)
+func _create_minimap_texture(resolution: int) -> ImageTexture:
+	# Safety check
+	if revealed.is_empty() or flagged.is_empty() or minefield.is_empty():
+		return null
+
+	var mm_res: int = max(1, resolution)
+	var image := Image.create(mm_res, mm_res, false, Image.FORMAT_RGB8)
+
+	for px in range(mm_res):
+		var fx0 = int(floor((px / float(mm_res)) * FIELD_SIZE))
+		var fx1 = int(floor(((px + 1.0) / float(mm_res)) * FIELD_SIZE)) - 1
+		fx0 = clamp(fx0, 0, FIELD_SIZE - 1)
+		fx1 = clamp(fx1, fx0, FIELD_SIZE - 1)
+		for py in range(mm_res):
+			var fy0 = int(floor((py / float(mm_res)) * FIELD_SIZE))
+			var fy1 = int(floor(((py + 1.0) / float(mm_res)) * FIELD_SIZE)) - 1
+			fy0 = clamp(fy0, 0, FIELD_SIZE - 1)
+			fy1 = clamp(fy1, fy0, FIELD_SIZE - 1)
+
+			var chosen: Color = MM_COLOR_UNREVEALED
+			var found_mine := false
+			var found_flag := false
+			var found_open_number := false
+			var found_open_empty := false
+			var rep_number_color: Color = MM_COLOR_UNREVEALED
+			for cx in range(fx0, fx1 + 1):
+				for cy in range(fy0, fy1 + 1):
+					if revealed[cx][cy]:
+						if minefield[cx][cy] == 1:
+							chosen = MM_COLOR_MINE
+							found_mine = true
+							break
+						else:
+							var am = _count_adjacent_mines(cx, cy)
+							if am == 0:
+								found_open_empty = true
+							else:
+								found_open_number = true
+								var intensity = float(am) / 8.0
+								var blue = 1.0
+								var rg = 0.55 - intensity * 0.35
+								rep_number_color = Color(rg, rg, blue)
+					elif flagged[cx][cy]:
+						found_flag = true
+				if found_mine:
+					break
+			if not found_mine:
+				if found_flag:
+					chosen = MM_COLOR_FLAG
+				elif found_open_number:
+					chosen = rep_number_color
+				elif found_open_empty:
+					chosen = MM_COLOR_EMPTY_OPEN
+
+			image.set_pixel(px, py, chosen)
+
+	return ImageTexture.create_from_image(image)
+
+# Helper: compute minimap color for a given field cell
+func _get_minimap_color_for_cell(cx: int, cy: int) -> Color:
+	var c = MM_COLOR_UNREVEALED
+	if revealed[cx][cy]:
+		if minefield[cx][cy] == 1:
+			c = MM_COLOR_MINE
+		else:
+			var am = _count_adjacent_mines(cx, cy)
+			if am == 0:
+				c = MM_COLOR_EMPTY_OPEN
+			else:
+				var intensity = float(am) / 8.0
+				var blue = 1.0
+				var rg = 0.55 - intensity * 0.35
+				c = Color(rg, rg, blue)
+	elif flagged[cx][cy]:
+		c = MM_COLOR_FLAG
+	return c
+
 func _generate_minimap_image():
 	# Safety check: ensure arrays are initialized
 	if revealed.is_empty() or flagged.is_empty() or minefield.is_empty():
 		print("Warning: Minimap called before minefield initialization")
 		return
-	
-	# Create image for minimap
-	minimap_image = Image.create(FIELD_SIZE, FIELD_SIZE, false, Image.FORMAT_RGB8)
-	
-	# Fill minimap with game state
-	for x in range(FIELD_SIZE):
-		for y in range(FIELD_SIZE):
-			var color = MM_COLOR_UNREVEALED  # Default unrevealed color
-			
-			if revealed[x][y]:
-				if minefield[x][y] == 1:
-					color = MM_COLOR_MINE  # Mine
-				else:
-					var adjacent_mines = _count_adjacent_mines(x, y)
-					if adjacent_mines == 0:
-						# Opened ground (no adjacent mines) in green for better readability
-						color = MM_COLOR_EMPTY_OPEN
-					else:
-						# Color based on number (light to dark blue) to distinguish from green open areas
-						var intensity = float(adjacent_mines) / 8.0  # Max 8 adjacent mines
-						var blue = 1.0
-						var rg = 0.55 - intensity * 0.35
-						color = Color(rg, rg, blue)
-			elif flagged[x][y]:
-				color = MM_COLOR_FLAG  # Flagged
-			# else remains gray for unrevealed
-			
-			minimap_image.set_pixel(x, y, color)
-	
+
+	# Create image at the minimap's on-screen resolution so tiny openings are visible
+	var mm_res: int = int(round(minimap_size))
+	mm_res = max(1, mm_res)
+	minimap_image = Image.create(mm_res, mm_res, false, Image.FORMAT_RGB8)
+
+	# Map each minimap pixel to its corresponding field cell block and choose a representative color.
+	# This makes small revealed patches visible even when the field is huge.
+	for px in range(mm_res):
+		var fx0 = int(floor((px / float(mm_res)) * FIELD_SIZE))
+		var fx1 = int(floor(((px + 1.0) / float(mm_res)) * FIELD_SIZE)) - 1
+		fx0 = clamp(fx0, 0, FIELD_SIZE - 1)
+		fx1 = clamp(fx1, fx0, FIELD_SIZE - 1)
+		for py in range(mm_res):
+			var fy0 = int(floor((py / float(mm_res)) * FIELD_SIZE))
+			var fy1 = int(floor(((py + 1.0) / float(mm_res)) * FIELD_SIZE)) - 1
+			fy0 = clamp(fy0, 0, FIELD_SIZE - 1)
+			fy1 = clamp(fy1, fy0, FIELD_SIZE - 1)
+
+			# Aggregate with priority: Mine > Flag > Opened numbered > Opened empty > Unrevealed
+			var chosen: Color = MM_COLOR_UNREVEALED
+			var found_mine := false
+			var found_flag := false
+			var found_open_number := false
+			var found_open_empty := false
+			var rep_number_color: Color = MM_COLOR_UNREVEALED
+			for cx in range(fx0, fx1 + 1):
+				for cy in range(fy0, fy1 + 1):
+					if revealed[cx][cy]:
+						if minefield[cx][cy] == 1:
+							chosen = MM_COLOR_MINE
+							found_mine = true
+							break
+						else:
+							var am = _count_adjacent_mines(cx, cy)
+							if am == 0:
+								found_open_empty = true
+							else:
+								found_open_number = true
+								# Keep last number color as representative
+								var intensity = float(am) / 8.0
+								var blue = 1.0
+								var rg = 0.55 - intensity * 0.35
+								rep_number_color = Color(rg, rg, blue)
+					elif flagged[cx][cy]:
+						found_flag = true
+				if found_mine:
+					break
+			# Decide final color by priority
+			if not found_mine:
+				if found_flag:
+					chosen = MM_COLOR_FLAG
+				elif found_open_number:
+					chosen = rep_number_color
+				elif found_open_empty:
+					chosen = MM_COLOR_EMPTY_OPEN
+
+			minimap_image.set_pixel(px, py, chosen)
+
 	# Create texture from image
-	minimap_texture = ImageTexture.new()
-	minimap_texture.create_from_image(minimap_image)
+	minimap_texture = ImageTexture.create_from_image(minimap_image)
 	minimap_texture_rect.texture = minimap_texture
 
 func _update_minimap():
@@ -1383,13 +1529,71 @@ func _update_minimap():
 
 func _on_minimap_input(event: InputEvent):
 	if event is InputEventMouseButton:
-		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			minimap_is_dragging = true
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				minimap_pointer_down = true
+				minimap_drag_started = false
+				minimap_click_pos = event.position
+			else:
+				# Release
+				if minimap_is_dragging:
+					minimap_is_dragging = false
+				else:
+					# Open big minimap overlay on click
+					_open_big_minimap()
+				minimap_pointer_down = false
+	elif event is InputEventMouseMotion:
+		if minimap_pointer_down:
+			var dist = (event.position - minimap_click_pos).length()
+			if not minimap_drag_started and dist > minimap_drag_threshold:
+				minimap_drag_started = true
+				minimap_is_dragging = true
+		if minimap_is_dragging:
 			_navigate_to_minimap_position(event.position)
-		else:
-			minimap_is_dragging = false
-	elif event is InputEventMouseMotion and minimap_is_dragging:
-		_navigate_to_minimap_position(event.position)
+
+func _navigate_to_minimap_position_generic(minimap_pos: Vector2, mm_size: float):
+	# Convert minimap position (in px within the minimap texture rect) to field coordinates
+	var field_x = int((minimap_pos.x / mm_size) * FIELD_SIZE)
+	var field_y = int((minimap_pos.y / mm_size) * FIELD_SIZE)
+
+	# Center the viewport
+	camera_x = int(field_x - VIEWPORT_SIZE / 2.0)
+	camera_y = int(field_y - VIEWPORT_SIZE / 2.0)
+
+	# Clamp
+	camera_x = int(clamp(camera_x, 0, FIELD_SIZE - VIEWPORT_SIZE))
+	camera_y = int(clamp(camera_y, 0, FIELD_SIZE - VIEWPORT_SIZE))
+
+	_update_camera_position()
+	_update_minimap()
+
+func _minimap_click_zoom_and_locate(minimap_pos: Vector2):
+	if not minimap_texture:
+		return
+
+	# Compute region around click to zoom (about 30% of minimap)
+	var mm_res: int = int(round(minimap_size))
+	var region_size = max(16, int(mm_res * 0.3))
+	var half = int(region_size / 2)
+	var cx = int(clamp(minimap_pos.x, 0, mm_res - 1))
+	var cy = int(clamp(minimap_pos.y, 0, mm_res - 1))
+	var rx = clamp(cx - half, 0, mm_res - region_size)
+	var ry = clamp(cy - half, 0, mm_res - region_size)
+
+	var atlas := AtlasTexture.new()
+	atlas.atlas = minimap_texture
+	atlas.region = Rect2(rx, ry, region_size, region_size)
+	minimap_zoom_overlay.texture = atlas
+	minimap_zoom_overlay.visible = true
+	minimap_zoom_overlay.modulate = Color(1,1,1,0)
+
+	var tween = create_tween()
+	# Fade-in quickly
+	tween.tween_property(minimap_zoom_overlay, "modulate", Color(1,1,1,1), 0.12)
+	# After short delay, navigate, then fade out
+	tween.tween_callback(_navigate_to_minimap_position.bind(minimap_pos)).set_delay(0.08)
+	tween.tween_property(minimap_zoom_overlay, "modulate", Color(1,1,1,0), 0.12)
+	tween.tween_callback(func(): minimap_zoom_overlay.visible = false)
 
 func _navigate_to_minimap_position(minimap_pos: Vector2):
 	# Convert minimap position to field coordinates
@@ -1408,17 +1612,127 @@ func _navigate_to_minimap_position(minimap_pos: Vector2):
 	_update_camera_position()
 	_update_minimap()  # Update minimap viewport indicator
 
+func _update_big_minimap_viewport():
+	if big_minimap_viewport_rect and big_minimap_size > 0:
+		var cell_px = big_minimap_size / float(FIELD_SIZE)
+		big_minimap_viewport_rect.size = Vector2(VIEWPORT_SIZE * cell_px, VIEWPORT_SIZE * cell_px)
+		big_minimap_viewport_rect.position = Vector2(camera_x * cell_px, camera_y * cell_px)
+
+func _open_big_minimap():
+	# Create overlay the first time
+	if not big_minimap_overlay:
+		big_minimap_overlay = Control.new()
+		big_minimap_overlay.name = "BigMinimapOverlay"
+		big_minimap_overlay.set_anchors_preset(PRESET_FULL_RECT)
+		add_child(big_minimap_overlay)
+
+		# Center panel
+		big_minimap_panel = Panel.new()
+		big_minimap_panel.custom_minimum_size = Vector2(560, 600)
+		big_minimap_panel.size = Vector2(560, 600)
+		big_minimap_panel.position = (get_viewport_rect().size - big_minimap_panel.size) / 2.0
+		big_minimap_overlay.add_child(big_minimap_panel)
+
+		# Title
+		var title = Label.new()
+		title.text = "MINIMAP"
+		title.position = Vector2(10, 8)
+		title.size = Vector2(500, 24)
+		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		big_minimap_panel.add_child(title)
+
+		# Close button
+		big_minimap_close_button = Button.new()
+		big_minimap_close_button.text = "X"
+		big_minimap_close_button.size = Vector2(28, 28)
+		big_minimap_close_button.position = Vector2(big_minimap_panel.size.x - 38, 6)
+		big_minimap_panel.add_child(big_minimap_close_button)
+		big_minimap_close_button.pressed.connect(_close_big_minimap)
+
+		# Big minimap texture
+		big_minimap_texture_rect = TextureRect.new()
+		big_minimap_texture_rect.position = Vector2(30, 40)
+		big_minimap_texture_rect.size = Vector2(500, 500)
+		big_minimap_texture_rect.stretch_mode = TextureRect.STRETCH_KEEP
+		big_minimap_texture_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		big_minimap_panel.add_child(big_minimap_texture_rect)
+		big_minimap_texture_rect.gui_input.connect(_on_big_minimap_input)
+
+		# Viewport indicator
+		big_minimap_viewport_rect = ColorRect.new()
+		big_minimap_viewport_rect.color = Color.RED
+		big_minimap_viewport_rect.modulate = Color(1, 0, 0, 0.5)
+		big_minimap_texture_rect.add_child(big_minimap_viewport_rect)
+
+	# Prepare texture
+	big_minimap_size = int(big_minimap_texture_rect.size.x)
+	var tex = _create_minimap_texture(big_minimap_size)
+	if tex:
+		big_minimap_texture_rect.texture = tex
+		_update_big_minimap_viewport()
+
+	big_minimap_overlay.visible = true
+
+func _close_big_minimap():
+	if big_minimap_overlay:
+		big_minimap_overlay.visible = false
+
+func _on_big_minimap_input(event: InputEvent):
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			var local_pos = event.position
+			_navigate_to_minimap_position_generic(local_pos, big_minimap_size)
+			_update_big_minimap_viewport()
+	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		var local_pos = event.position
+		_navigate_to_minimap_position_generic(local_pos, big_minimap_size)
+		_update_big_minimap_viewport()
+
 func _update_time_display():
 	if time_label:
 		var minutes = int(game_time) / 60.0
 		var seconds = int(game_time) % 60
 		time_label.text = "Time: %02d:%02d" % [minutes, seconds]
+	else:
+		# Debug: Print to console if label is missing
+		if is_timing and not game_over:
+			print("Timer running but no time_label found. Game time: ", game_time)
 
 func _on_end_game_button_pressed():
 	if not game_over:
 		# Player chose to end game early - give bonus
 		var bonus = end_game_bonus
 		coins += bonus
-		
+
 		print("Player ended game early. Bonus: +", bonus, " coins")
 		_show_game_over()
+
+func _on_options_button_pressed():
+	"""Handle options button press"""
+	print("Options button pressed")
+	_show_options_modal()
+
+func _show_options_modal():
+	"""Show the options modal"""
+	if current_options_modal:
+		return  # Already showing
+
+	# Pause the game while options are open
+	var was_timing = is_timing
+	is_timing = false
+
+	# Create options modal from shared scene
+	var modal_scene: PackedScene = load("res://scenes/OptionsModal.tscn")
+	current_options_modal = modal_scene.instantiate()
+	add_child(current_options_modal)
+
+	# Connect close signal
+	current_options_modal.options_closed.connect(_on_options_modal_closed.bind(was_timing))
+
+func _on_options_modal_closed(was_timing: bool):
+	"""Handle options modal being closed"""
+	current_options_modal = null
+
+	# Resume timing if it was active before
+	if was_timing and not game_over:
+		is_timing = true

@@ -127,12 +127,21 @@ text = "PLAY"
 custom_minimum_size = Vector2(0, 15)
 layout_mode = 2
 
-[node name="OptionsButton" type="Button" parent="MainContainer/ButtonContainer"]
+[node name="HighscoreButton" type="Button" parent="MainContainer/ButtonContainer"]
 custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
 text = "HIGHSCORE"
 
 [node name="ButtonSpacer2" type="Control" parent="MainContainer/ButtonContainer"]
+custom_minimum_size = Vector2(0, 15)
+layout_mode = 2
+
+[node name="OptionsButton" type="Button" parent="MainContainer/ButtonContainer"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+text = "OPTIONS"
+
+[node name="ButtonSpacer3" type="Control" parent="MainContainer/ButtonContainer"]
 custom_minimum_size = Vector2(0, 15)
 layout_mode = 2
 
@@ -176,5 +185,6 @@ stream = ExtResource("4_bgm")
 autoplay = true
 
 [connection signal="pressed" from="MainContainer/ButtonContainer/PlayButton" to="." method="_on_play_button_pressed"]
+[connection signal="pressed" from="MainContainer/ButtonContainer/HighscoreButton" to="." method="_on_highscore_button_pressed"]
 [connection signal="pressed" from="MainContainer/ButtonContainer/OptionsButton" to="." method="_on_options_button_pressed"]
 [connection signal="pressed" from="MainContainer/ButtonContainer/QuitButton" to="." method="_on_quit_button_pressed"]
